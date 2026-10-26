@@ -1,16 +1,5 @@
 buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:3.6.4'
-    }
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:8.7.3' }
 }
-
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
+allprojects { repositories { google(); mavenCentral() } }
