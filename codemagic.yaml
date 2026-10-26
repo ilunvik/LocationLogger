@@ -1,0 +1,27 @@
+workflows:
+  default-workflow:
+    name: Location Logger Build
+    instance_type: linux
+    os: linux
+    environment:
+      java: openjdk
+      java_version: "17"
+    cache:
+      paths:
+        - ~/.gradle/caches
+        - ~/.gradle/wrapper
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch:
+        include:
+          - main
+          - master
+    steps:
+      - name: Build APK
+        script: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+    artifacts:
+      - app/build/outputs/apk/debug/app-debug.apk
