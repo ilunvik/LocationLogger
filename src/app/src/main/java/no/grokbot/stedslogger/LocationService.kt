@@ -354,7 +354,7 @@ class LocationService : Service() {
             busy = false
             return
         }
-        val geocoder = Geocoder(this, Locale("nb", "NO"))
+        val geocoder = Geocoder(this, Locale.getDefault())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             try {
                 geocoder.getFromLocation(loc.latitude, loc.longitude, 1, object : Geocoder.GeocodeListener {

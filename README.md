@@ -8,7 +8,8 @@ A small Android app that logs the **street address** you are at. At a configurab
 2026-10-26 03:49 | Storgata 1, 0155 Oslo
 ```
 
-The timestamp uses the phone's local time. The address is "street + house number, postcode + city",
+The timestamp uses the phone's local time, and the address is looked up in the phone's language.
+The address is "street + house number, postcode + city",
 falling back to the geocoder's full address line when there is no street name.
 
 - Runs as a **foreground service** (`foregroundServiceType="location"`) with a persistent notification,
@@ -109,6 +110,7 @@ adb install -r app-release.apk
 
 ```
 README.md
+LICENSE
 .gitignore
 src/                      Gradle project
   settings.gradle.kts
@@ -128,3 +130,7 @@ src/                      Gradle project
 ```
 
 The package name `no.grokbot.stedslogger` is kept from the app's original (Norwegian) name, *Stedslogger*.
+
+## License
+
+Released under the [MIT License](LICENSE).
