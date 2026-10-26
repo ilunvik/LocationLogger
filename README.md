@@ -59,11 +59,19 @@ On first start the app asks for:
 
 ### WRITE_SECURE_SETTINGS (for the GPS on/off feature)
 
-This is a privileged permission an app cannot request itself. Grant it once over adb
-(it survives app updates, but not uninstall):
+This is a privileged permission an app cannot request itself. Grant it once over adb:
 
 ```sh
 adb shell pm grant no.grokbot.stedslogger android.permission.WRITE_SECURE_SETTINGS
+```
+
+It normally survives app updates, but is lost on uninstall (and some devices drop it on a
+reinstall). If the main screen shows **"Missing permission to control GPS
+(grant WRITE_SECURE_SETTINGS via adb)"**, just run the command above again. Check that it took with:
+
+```sh
+adb shell dumpsys package no.grokbot.stedslogger | grep WRITE_SECURE_SETTINGS
+# expect: WRITE_SECURE_SETTINGS: granted=true
 ```
 
 ## Building
