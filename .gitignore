@@ -1,25 +1,25 @@
-# Gradle files
+# Gradle / Android build output
 .gradle/
+.kotlin/
 build/
-gradle/
-
-# Local configuration file
+**/build/
 local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.log
 
 # IDE
 .idea/
 *.iml
-*.iws
-*.ipr
 .DS_Store
 
-# Output files
-/out/
+# Signing material (never commit)
+*.jks
+*.keystore
 
-# APK
+# Built APKs and local backups
 *.apk
-*.ap_
-*.ap
-
-# Lint results
-lint-results.xml
+*.aab
+src-v*-backup/
+Stedslogger-*.apk
