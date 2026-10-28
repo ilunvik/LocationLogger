@@ -3,7 +3,7 @@
 A small Android app that records the **places you visit**. At a configurable interval
 (default every 5 minutes) it gets the phone's location and reverse-geocodes it to an address
 (optionally merged into a place name, see [Places](#places)). From that it builds a list of
-**visits** shown on the main screen, newest first:
+**visits** shown in the app's **Visits** tab, newest first:
 
 ```
 Today · Wed 28 Oct 2026
@@ -33,9 +33,20 @@ in a file manager, removed on uninstall). Older versions (≤ 1.6) wrote a text 
 Since 1.7 that file is **no longer written, but never deleted**. On the first start of 1.7 its lines
 are imported once as visits (arrival time only; no departure, coordinates or distance).
 
-## Settings (main screen)
+## Screens
 
-- **Start / Stop / Check now** – start or stop logging, or run a check immediately.
+The app has two tabs:
+
+- **Visits** – running/stopped status (with a warning if a permission or battery setting needs
+  attention), the last check, **Check now**, the "Seen once" candidate and the visit list. The
+  current visit's duration updates every minute.
+- **Settings** – detailed status (GPS control, location permission, battery optimization),
+  **Start / Stop logging** and the settings below. Back on the Settings tab returns to Visits; the
+  app reopens on the tab you used last.
+
+## Settings
+
+- **Start logging / Stop logging** – start or stop the background service.
 - **Check every (minutes)** – interval between checks, 1–1440 minutes, default 5. Use −/+ or type a
   value and tap *Apply*. Takes effect immediately in the running service (the next check is
   rescheduled relative to the last one).
@@ -57,7 +68,7 @@ are imported once as visits (arrival time only; no departure, coordinates or dis
 ## Places
 
 The geocoder often returns slightly different addresses for the same position. Tap
-**Places (merge addresses) …** on the main screen and enter one place per line:
+**Places (merge addresses) …** on the Settings tab and enter one place per line:
 
 ```
 Name;address 1;address 2;...

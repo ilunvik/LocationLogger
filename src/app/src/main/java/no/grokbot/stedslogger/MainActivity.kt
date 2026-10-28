@@ -29,10 +29,12 @@ class MainActivity : Activity() {
         private const val REQ_FOREGROUND = 1
         private const val REQ_BACKGROUND = 2
         private const val MAX_VISITS = 300
+        private const val KEY_TAB = "ui_tab"
     }
 
     private lateinit var status: TextView
     private lateinit var lastCheck: TextView
+    private lateinit var settingsStatus: TextView
     private lateinit var filePath: TextView
     private lateinit var visits: android.widget.LinearLayout
     private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -54,6 +56,10 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
         status = findViewById(R.id.status)
         lastCheck = findViewById(R.id.lastCheck)
+        settingsStatus = findViewById(R.id.settingsStatus)
+        findViewById<android.view.View>(R.id.tabVisits).setOnClickListener { showTab(0) }
+        findViewById<android.view.View>(R.id.tabSettings).setOnClickListener { showTab(1) }
+        showTab(LogStore.prefs(this).getInt(KEY_TAB, 0))
         filePath = findViewById(R.id.filePath)
         visits = findViewById(R.id.visits)
         btnBackground = findViewById(R.id.btnBackground)
@@ -102,6 +108,34 @@ class MainActivity : Activity() {
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         uiHandler.removeCallbacks(minuteTick)
         super.onPause()
+    }
+
+    // ---------- tabs ----------
+
+    private var tab = 0
+
+    private fun showTab(index: Int) {
+        tab = if (index == 1) 1 else 0
+        findViewById<android.view.View>(R.id.pageVisits).visibility = if (tab == 0) android.view.View.VISIBLE else android.view.View.GONE
+        findViewById<android.view.View>(R.id.pageSettings).visibility = if (tab == 1) android.view.View.VISIBLE else android.view.View.GONE
+        val on = 0xFF1565C0.toInt()
+        val off = 0xFF757575.toInt()
+        findViewById<TextView>(R.id.tabVisitsLabel).setTextColor(if (tab == 0) on else off)
+        findViewById<TextView>(R.id.tabSettingsLabel).setTextColor(if (tab == 1) on else off)
+        findViewById<android.view.View>(R.id.tabVisitsLine).visibility = if (tab == 0) android.view.View.VISIBLE else android.view.View.INVISIBLE
+        findViewById<android.view.View>(R.id.tabSettingsLine).visibility = if (tab == 1) android.view.View.VISIBLE else android.view.View.INVISIBLE
+        if (tab == 0) {
+            currentFocus?.let {
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(it.windowToken, 0)
+                it.clearFocus()
+            }
+        }
+        LogStore.prefs(this).edit().putInt(KEY_TAB, tab).apply()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (tab == 1) showTab(0) else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
     // ---------- settings ----------
@@ -314,7 +348,14 @@ class MainActivity : Activity() {
                 "GPS: Missing permission to control GPS (grant WRITE_SECURE_SETTINGS via adb) – only requesting location"
             else -> "GPS: turned on when needed, and restored after each check"
         }
-        status.text = (if (running) "● Running – checking every $interval min" else "○ Stopped – interval $interval min") +
+        status.text = if (running) "● Running – checking every $interval min" else "○ Stopped – interval $interval min"
+        val warnings = listOfNotNull(
+            if (!hasForegroundLocation()) "location not allowed" else null,
+            if (LogStore.gpsOffBetween(this) && !GpsToggle.hasPermission(this)) "missing permission to control GPS" else null,
+            if (!isIgnoringBattery()) "battery optimization on" else null,
+        )
+        if (warnings.isNotEmpty()) status.text = "${status.text}\n⚠ ${warnings.joinToString(", ")} (see Settings)"
+        settingsStatus.text = (if (running) "● Running – checking every $interval min" else "○ Stopped – interval $interval min") +
             "\n" + gps + "\n" + perm +
             (if (isIgnoringBattery()) "\nBattery optimization: off" else "\nBattery optimization: on (may stop logging)")
         lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")
