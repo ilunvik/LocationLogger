@@ -99,7 +99,8 @@ repository.
 Settings › **Dashboard URL**: if set, the app reports the phone's wireless-debugging address to that URL,
 so the current `adb connect` port is always known. On each check and on network changes it reads
 `adb_wifi_enabled` (read-only) and looks up the phone's own `_adb-tls-connect._tcp` service via NSD
-(mDNS), matching the service's host IP against the phone's own interface IPs. It POSTs JSON
+(mDNS), matching the service's host IP against the phone's own interface IPs. `tailscaleIp` is only taken from the VPN interface
+(Tailscale's `tun*`), never from mobile data, where carriers also use 100.64.0.0/10 (CGNAT) addresses. It POSTs JSON
 
 ```
 {"ip": "100.x.y.z", "tailscaleIp": "100.x.y.z", "lanIp": "192.168.x.y", "port": 40000,

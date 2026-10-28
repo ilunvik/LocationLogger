@@ -64,21 +64,39 @@ object AdbReporter {
         (try { Settings.Global.getString(ctx.contentResolver, "device_name") } catch (_: Exception) { null })
             ?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL ?: "phone"
 
-    /** This device's own IPv4 addresses: (tailnet 100.64/10, LAN private range, all). */
-    fun ownIps(): Triple<String?, String?, Set<String>> {
+    private fun isCgnat(b: List<Int>) = b[0] == 100 && b[1] in 64..127
+
+    /** Names of interfaces that belong to a VPN network (Tailscale runs as a VPN, usually on `tun0`). */
+    private fun vpnInterfaces(ctx: Context?): Set<String> = try {
+        val cm = ctx?.getSystemService(android.net.ConnectivityManager::class.java)
+        cm?.allNetworks?.filter { n ->
+            cm.getNetworkCapabilities(n)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+        }?.mapNotNull { cm.getLinkProperties(it)?.interfaceName }?.toSet() ?: emptySet()
+    } catch (_: Exception) { emptySet() }
+
+    /**
+     * This device's own IPv4 addresses: (tailnet IP, LAN private range, all). The tailnet IP is only taken
+     * from a VPN interface (ConnectivityManager TRANSPORT_VPN, or a `tun*` interface) with an address in
+     * 100.64/10 – never from the mobile data interface, where carriers also hand out 100.64/10 (CGNAT) addresses.
+     */
+    fun ownIps(ctx: Context? = null): Triple<String?, String?, Set<String>> {
         val all = mutableSetOf<String>()
         var ts: String? = null
         var lan: String? = null
+        val vpn = vpnInterfaces(ctx)
         try {
             for (ni in NetworkInterface.getNetworkInterfaces() ?: return Triple(null, null, all)) {
                 if (!ni.isUp || ni.isLoopback) continue
+                val isVpn = ni.name in vpn || ni.name.startsWith("tun")
                 for (a in ni.inetAddresses) {
                     if (a !is Inet4Address) continue
                     val ip = a.hostAddress ?: continue
                     all += ip
                     val b = a.address.map { it.toInt() and 0xFF }
-                    if (b[0] == 100 && b[1] in 64..127) { if (ts == null) ts = ip }
-                    else if (b[0] == 10 || (b[0] == 192 && b[1] == 168) || (b[0] == 172 && b[1] in 16..31)) { if (lan == null || ni.name.startsWith("wlan")) lan = ip }
+                    if (isCgnat(b)) { if (isVpn && ts == null) ts = ip }
+                    else if (b[0] == 10 || (b[0] == 192 && b[1] == 168) || (b[0] == 172 && b[1] in 16..31)) {
+                        if (!isVpn && (lan == null || ni.name.startsWith("wlan"))) lan = ip
+                    }
                 }
             }
         } catch (e: Exception) { Log.w(TAG, "interfaces", e) }
@@ -165,7 +183,7 @@ object AdbReporter {
 
     /** Runs on [io]. */
     private fun finish(ctx: Context, u: String, wifi: String, port: Int?, force: Boolean, tcp: Boolean) {
-        val (ts, lan, _) = ownIps()
+        val (ts, lan, _) = ownIps(ctx)
         LogStore.prefs(ctx).edit().putBoolean(KEY_TCP, tcp).apply()
         if (wifi != "off" && port == null && !tcp) {
             setStatus(ctx, "${hhmm()}: wireless debugging port not found (not reported)")
