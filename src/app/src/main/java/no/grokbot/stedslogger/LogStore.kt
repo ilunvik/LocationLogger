@@ -1,6 +1,5 @@
 package no.grokbot.stedslogger
 
-import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
 import android.os.Build
@@ -8,18 +7,20 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import java.io.File
-import java.io.FileOutputStream
 
-/** Handles location.txt (Documents/location.txt via MediaStore, or app files dir as fallback) and saved state. */
+/** Saved state (preferences), and the one-time removal of the old text log. */
 object LogStore {
     private const val TAG = "LocationLogger"
-    const val FILE_NAME = "location.txt"
+    /** Old text log written by versions <= 1.6; only used to delete it. */
+    private const val FILE_NAME = "location.txt"
     const val PREFS = "stedslogger"
     const val KEY_RUNNING = "running"
     const val KEY_LAST_ADDRESS = "last_address"          // place of the latest visit (after the place list)
     const val KEY_LAST_RAW_ADDRESS = "last_raw_address"  // last address exactly as the geocoder gave it
     const val KEY_LAST_CHECK = "last_check"
-    const val KEY_FILE_URI = "file_uri"
+    private const val KEY_FILE_URI = "file_uri"
+    private const val KEY_IMPORTED_FROM_TEXT = "visits_imported_from_text"
+    private const val KEY_TEXT_LOG_DELETED = "text_log_deleted"
     const val KEY_LOG_VERSION = "log_version"
     const val KEY_GPS_OFF_BETWEEN = "gps_off_between"
     const val KEY_INTERVAL_MIN = "interval_min"
@@ -33,104 +34,51 @@ object LogStore {
 
     fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private fun fallbackFile(ctx: Context): File =
-        File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, FILE_NAME)
-
-    /** Human readable location of the log file. */
-    fun describeLocation(ctx: Context): String =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && prefs(ctx).getString(KEY_FILE_URI, null) != null)
-            "Internal storage › Documents › $FILE_NAME"
-        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-            "Internal storage › Documents › $FILE_NAME (created on first entry)"
-        else fallbackFile(ctx).absolutePath
-
-    private fun findOrCreateMediaUri(ctx: Context, create: Boolean): Uri? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
-        val p = prefs(ctx)
-        val cr = ctx.contentResolver
-        p.getString(KEY_FILE_URI, null)?.let { s ->
-            val uri = Uri.parse(s)
-            val exists = try {
-                cr.query(uri, arrayOf(MediaStore.MediaColumns._ID), null, null, null)?.use { it.count > 0 } ?: false
-            } catch (e: Exception) { false }
-            if (exists) return uri
-            p.edit().remove(KEY_FILE_URI).apply()
-        }
-        val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val relPath = Environment.DIRECTORY_DOCUMENTS + "/"
-        try {
-            cr.query(
-                collection, arrayOf(MediaStore.MediaColumns._ID),
-                "${MediaStore.MediaColumns.RELATIVE_PATH}=? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?",
-                arrayOf(relPath, FILE_NAME), null
-            )?.use { c ->
-                if (c.moveToFirst()) {
-                    val uri = Uri.withAppendedPath(collection, c.getLong(0).toString())
-                    p.edit().putString(KEY_FILE_URI, uri.toString()).apply()
-                    return uri
-                }
-            }
-        } catch (e: Exception) { Log.w(TAG, "query failed", e) }
-        if (!create) return null
-        return try {
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, FILE_NAME)
-                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, relPath)
-            }
-            cr.insert(collection, values)?.also {
-                p.edit().putString(KEY_FILE_URI, it.toString()).apply()
-            }
-        } catch (e: Exception) { Log.w(TAG, "insert failed", e); null }
-    }
-
-    /** Appends one line. Returns true on success. */
+    /**
+     * One-time cleanup (1.9): deletes the old text log location.txt that versions <= 1.6 wrote,
+     * from every place the app ever wrote it:
+     *  - Documents/location.txt (Android 10+, created by this app via MediaStore; only entries
+     *    owned by this app are matched, so files from other apps are never touched),
+     *  - <app-specific external dir>/files/location.txt (Android/data/no.grokbot.stedslogger/files/),
+     *  - <app-private files dir>/location.txt (fallback when no external dir was available).
+     * Visits (visits.json) are not touched. Retried on the next start if something failed.
+     */
     @Synchronized
-    fun append(ctx: Context, line: String): Boolean {
-        val bytes = (line + "\n").toByteArray(Charsets.UTF_8)
+    fun deleteOldTextLogsOnce(ctx: Context) {
+        val p = prefs(ctx)
+        if (p.getBoolean(KEY_TEXT_LOG_DELETED, false)) return
+        var ok = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val cr = ctx.contentResolver
             try {
-                val uri = findOrCreateMediaUri(ctx, create = true)
-                if (uri != null) {
-                    ctx.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
-                        FileOutputStream(pfd.fileDescriptor).use { out ->
-                            val ch = out.channel
-                            ch.position(ch.size())
-                            out.write(bytes)
-                            out.flush()
-                        }
-                    }
-                    bump(ctx)
-                    return true
+                val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                val sel = "${MediaStore.MediaColumns.RELATIVE_PATH}=? AND " +
+                    "${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=? AND " +
+                    "(${MediaStore.MediaColumns.DISPLAY_NAME}=? OR ${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?)"
+                val args = arrayOf(Environment.DIRECTORY_DOCUMENTS + "/", ctx.packageName, FILE_NAME, "location (%).txt")
+                val ids = mutableListOf<Long>()
+                cr.query(collection, arrayOf(MediaStore.MediaColumns._ID), sel, args, null)?.use { c ->
+                    while (c.moveToNext()) ids += c.getLong(0)
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "MediaStore write failed, using fallback", e)
-                prefs(ctx).edit().remove(KEY_FILE_URI).apply()
-            }
+                for (id in ids) {
+                    val uri = Uri.withAppendedPath(collection, id.toString())
+                    try {
+                        cr.delete(uri, null, null)
+                        Log.i(TAG, "deleted old text log $uri")
+                    } catch (e: Exception) { ok = false; Log.w(TAG, "delete $uri failed", e) }
+                }
+            } catch (e: Exception) { ok = false; Log.w(TAG, "text log query failed", e) }
         }
-        return try {
-            fallbackFile(ctx).appendBytes(bytes)
-            bump(ctx)
-            true
-        } catch (e: Exception) { Log.e(TAG, "fallback write failed", e); false }
+        val files = listOfNotNull(ctx.getExternalFilesDir(null), ctx.filesDir).map { File(it, FILE_NAME) }
+        for (f in files) {
+            if (f.exists() && !f.delete()) { ok = false; Log.w(TAG, "could not delete ${f.absolutePath}") }
+        }
+        if (ok) p.edit().putBoolean(KEY_TEXT_LOG_DELETED, true)
+            .remove(KEY_FILE_URI).remove(KEY_IMPORTED_FROM_TEXT).apply()
     }
 
     fun bump(ctx: Context) {
         val p = prefs(ctx)
         p.edit().putLong(KEY_LOG_VERSION, p.getLong(KEY_LOG_VERSION, 0) + 1).apply()
-    }
-
-    fun readAll(ctx: Context): String {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                findOrCreateMediaUri(ctx, create = false)?.let { uri ->
-                    ctx.contentResolver.openInputStream(uri)?.use {
-                        return it.readBytes().toString(Charsets.UTF_8)
-                    }
-                }
-            } catch (e: Exception) { Log.w(TAG, "read failed", e) }
-        }
-        val f = fallbackFile(ctx)
-        return if (f.exists()) try { f.readText() } catch (e: Exception) { "" } else ""
     }
 }

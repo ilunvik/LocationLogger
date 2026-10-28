@@ -35,7 +35,6 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var lastCheck: TextView
     private lateinit var settingsStatus: TextView
-    private lateinit var filePath: TextView
     private lateinit var visits: android.widget.LinearLayout
     private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val minuteTick = object : Runnable {
@@ -60,7 +59,6 @@ class MainActivity : Activity() {
         findViewById<android.view.View>(R.id.tabVisits).setOnClickListener { showTab(0) }
         findViewById<android.view.View>(R.id.tabSettings).setOnClickListener { showTab(1) }
         showTab(LogStore.prefs(this).getInt(KEY_TAB, 0))
-        filePath = findViewById(R.id.filePath)
         visits = findViewById(R.id.visits)
         btnBackground = findViewById(R.id.btnBackground)
         btnBattery = findViewById(R.id.btnBattery)
@@ -363,10 +361,8 @@ class MainActivity : Activity() {
         btnBattery.isEnabled = !isIgnoringBattery()
         val nPlaces = Places.count(Places.text(this))
         btnPlaces.text = if (nPlaces == 0) "Places (merge addresses) …" else "Places (merge addresses): $nPlaces …"
-        filePath.text = "Visits are stored in the app. Old text log (no longer written): " +
-            LogStore.describeLocation(this)
         Thread {
-            VisitStore.importTextLogOnce(this)
+            LogStore.deleteOldTextLogsOnce(this)
             val all = VisitStore.all(this)
             val cand = VisitStore.candidate(this)
             runOnUiThread { showVisits(all, cand, running) }
@@ -452,7 +448,7 @@ class MainActivity : Activity() {
                 isCurrent && running -> "$arrived – now" to "${formatDuration(now - v.arrival)} so far"
                 dep != null && isCurrent -> "$arrived – last seen ${at(dep)} (logging stopped)" to formatDuration(dep - v.arrival)
                 dep != null -> "$arrived – left ${at(dep)}" to formatDuration(dep - v.arrival)
-                next != null -> "$arrived – left ?" to "up to ${formatDuration(next.arrival - v.arrival)} (from old log)"
+                next != null -> "$arrived – left ?" to "up to ${formatDuration(next.arrival - v.arrival)}"
                 else -> "$arrived – left ?" to null
             }
             val details = listOfNotNull(

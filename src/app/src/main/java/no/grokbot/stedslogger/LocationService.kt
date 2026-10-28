@@ -122,6 +122,7 @@ class LocationService : Service() {
         LogStore.prefs(this).edit().putBoolean(LogStore.KEY_RUNNING, true).apply()
         if (!running) {
             running = true
+            executor.execute { try { LogStore.deleteOldTextLogsOnce(this) } catch (e: Exception) { Log.w(TAG, "text log cleanup failed", e) } }
             acquireWakeLock()
             LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
             handler.post(tick)
@@ -401,7 +402,7 @@ class LocationService : Service() {
      *    the last fix at the previous stop to the first sighting of the new one, including
      *    unconfirmed candidates and fixes without an address.
      * Checks with no fix or no address are skipped. Visits are stored in the app
-     * (visits.json); location.txt is no longer written.
+     * (visits.json).
      */
     private fun onAddress(a: Address?, loc: Location) {
         busy = false

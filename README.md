@@ -28,10 +28,7 @@ falling back to the geocoder's full address line when there is no street name.
 ## Where the data is saved
 
 Visits are stored privately in the app (`files/visits.json` in the app's data directory; not visible
-in a file manager, removed on uninstall). Older versions (≤ 1.6) wrote a text log,
-`Documents/location.txt` (Android 10+) or `Android/data/no.grokbot.stedslogger/files/location.txt`.
-Since 1.7 that file is **no longer written, but never deleted**. On the first start of 1.7 its lines
-are imported once as visits (arrival time only; no departure, coordinates or distance).
+in a file manager, removed on uninstall). Nothing is written to shared storage.
 
 ## Screens
 
@@ -93,7 +90,7 @@ For each successful check the address is first corrected with the place list, th
 So a place must be seen on two checks in a row to become a visit (a single check elsewhere, e.g.
 A → B → A, does not split the stay at A). Checks without a location fix or address are skipped for
 this. The current visit shows "now" and its running duration; when logging is stopped it shows
-"last seen". Imported text-log visits show "left ?" and "up to …" (time until the next entry).
+"last seen". Visits without a recorded departure show "left ?" and "up to …" (time until the next visit).
 Each visit's coordinates are the average of its first and confirming fix.
 
 ### Travelled distance
@@ -196,7 +193,7 @@ src/                      Gradle project
       MainActivity.kt      UI, permissions, settings
       LocationService.kt   foreground service, checks, GPS toggling, logging
       GpsToggle.kt         system location on/off via Settings.Secure
-      LogStore.kt          old location.txt (read for import) and preferences
+      LogStore.kt          preferences
       VisitStore.kt        visits (visits.json), arrival/departure, travelled distance
       Places.kt            place list: merges several addresses into one name
       BootReceiver.kt      restart after reboot / update

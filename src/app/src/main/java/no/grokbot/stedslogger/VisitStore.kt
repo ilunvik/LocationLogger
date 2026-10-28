@@ -9,7 +9,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-/** One stop. [departure] is the last check still at this place (null = unknown, e.g. imported). */
+/** One stop. [departure] is the last check still at this place (null = unknown, e.g. imported by an older version). */
 data class Visit(
     val name: String,
     val arrival: Long,
@@ -28,7 +28,6 @@ data class Visit(
 object VisitStore {
     private const val TAG = "LocationLogger"
     private const val FILE = "visits.json"
-    private const val KEY_IMPORTED = "visits_imported_from_text"
 
     // Candidate place: seen once, not yet confirmed
     private const val KEY_CAND_NAME = "pending_address"
@@ -103,36 +102,6 @@ object VisitStore {
         LogStore.bump(ctx)
     }
 
-    /**
-     * One-time import of the old location.txt lines ("yyyy-MM-dd HH:mm | text") as visits
-     * without coordinates or departure. The text file itself is left untouched.
-     */
-    @Synchronized
-    fun importTextLogOnce(ctx: Context) {
-        val p = LogStore.prefs(ctx)
-        if (p.getBoolean(KEY_IMPORTED, false)) return
-        val list = load(ctx)
-        if (list.isEmpty()) {
-            val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-            val places = Places.parse(Places.text(ctx))
-            val imported = mutableListOf<Visit>()
-            for (line in LogStore.readAll(ctx).lines()) {
-                val i = line.indexOf(" | ")
-                if (i <= 0) continue
-                val t = try { fmt.parse(line.substring(0, i).trim())?.time } catch (e: Exception) { null } ?: continue
-                val name = Places.resolve(places, line.substring(i + 3).trim())
-                if (name.isEmpty()) continue
-                if (imported.lastOrNull()?.let { Places.same(places, it.name, name) } == true) continue
-                imported += Visit(name, t, null, null, null, imported = true)
-            }
-            if (imported.isNotEmpty()) {
-                list.addAll(imported)
-                save(ctx, list)
-            }
-        }
-        p.edit().putBoolean(KEY_IMPORTED, true).apply()
-    }
-
     /** Result of one successful check, for the status line. */
     enum class Outcome { SAME_PLACE, CANDIDATE, NEW_VISIT }
 
@@ -147,7 +116,6 @@ object VisitStore {
         val lat = loc.latitude
         val lon = loc.longitude
         val accurate = isAccurate(loc)
-        importTextLogOnce(ctx)
         val p = LogStore.prefs(ctx)
         val places = Places.parse(Places.text(ctx))
         val list = load(ctx)
