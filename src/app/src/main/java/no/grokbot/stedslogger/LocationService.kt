@@ -96,6 +96,30 @@ class LocationService : Service() {
         LogStore.prefs(this).edit().putLong(KEY_LAST_TICK_AT, now).apply()
         checkLocation()
         scheduleNext()
+        try { AdbReporter.maybeReport(this) } catch (e: Exception) { Log.w(TAG, "adb report failed", e) }
+    }
+
+    // Network changes: report the wireless-debugging address again (debounced; only if a URL is set)
+    private var netCallback: android.net.ConnectivityManager.NetworkCallback? = null
+    private val netReport = Runnable { try { AdbReporter.maybeReport(this) } catch (_: Exception) {} }
+
+    private fun startNetWatch() {
+        if (netCallback != null) return
+        val cm = getSystemService(android.net.ConnectivityManager::class.java) ?: return
+        val cb = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) { handler.removeCallbacks(netReport); handler.postDelayed(netReport, 8000) }
+            override fun onLinkPropertiesChanged(network: android.net.Network, lp: android.net.LinkProperties) {
+                handler.removeCallbacks(netReport); handler.postDelayed(netReport, 8000)
+            }
+        }
+        try { cm.registerDefaultNetworkCallback(cb); netCallback = cb } catch (e: Exception) { Log.w(TAG, "network callback", e) }
+    }
+
+    private fun stopNetWatch() {
+        netCallback?.let { cb ->
+            try { getSystemService(android.net.ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) } catch (_: Exception) {}
+        }
+        netCallback = null
     }
 
     /** Called by [CheckAlarmReceiver] on the main thread. */
@@ -166,6 +190,7 @@ class LocationService : Service() {
             executor.execute { try { LogStore.deleteOldTextLogsOnce(this) } catch (e: Exception) { Log.w(TAG, "text log cleanup failed", e) } }
             acquireWakeLock()
             startPassive()
+            startNetWatch()
             LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
             // Continue the earlier schedule if the service was restarted (boot, update, killed)
             lastTickAt = LogStore.prefs(this).getLong(KEY_LAST_TICK_AT, 0L)
@@ -188,6 +213,7 @@ class LocationService : Service() {
         instance = null
         CheckAlarm.cancel(this)
         stopPassive()
+        stopNetWatch()
         handler.removeCallbacksAndMessages(null)
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         cancelPending()
@@ -204,6 +230,7 @@ class LocationService : Service() {
         // The alarm is kept if logging is still on: it restarts the service if Android killed it
         releaseCheckWake()
         stopPassive()
+        stopNetWatch()
         handler.removeCallbacksAndMessages(null)
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         cancelPending()

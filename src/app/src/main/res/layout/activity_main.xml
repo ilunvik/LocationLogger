@@ -322,6 +322,50 @@
                         android:textSize="13sp" />
                 </LinearLayout>
 
+                <!-- Optional: report the wireless-debugging address to a dashboard -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="Dashboard URL"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Optional. If set, the phone's wireless-debugging address (ip:port, or off) is sent to this URL when it changes and about once an hour. Read-only: nothing is turned on or off. Empty = off."
+                    android:textSize="13sp" />
+                <EditText
+                    android:id="@+id/editDashboardUrl"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:hint="https://…/api/adbport"
+                    android:importantForAutofill="no"
+                    android:inputType="textUri"
+                    android:singleLine="true"
+                    android:textSize="14sp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+                    <Button
+                        android:id="@+id/btnSaveDashboardUrl"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Save" />
+                    <TextView
+                        android:id="@+id/dashboardStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:textIsSelectable="true"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
             </LinearLayout>
         </ScrollView>
     </FrameLayout>

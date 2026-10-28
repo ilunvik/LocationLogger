@@ -94,6 +94,23 @@ pastes it at the cursor, and *Save* stores the list ("Saved (N places)" / "Not s
 to it). Leaving the Settings tab with unsaved changes asks whether to save or discard them. The list is stored on the device only (app preferences), never in this
 repository.
 
+## Dashboard URL (optional)
+
+Settings › **Dashboard URL**: if set, the app reports the phone's wireless-debugging address to that URL,
+so the current `adb connect` port is always known. On each check and on network changes it reads
+`adb_wifi_enabled` (read-only) and looks up the phone's own `_adb-tls-connect._tcp` service via NSD
+(mDNS), matching the service's host IP against the phone's own interface IPs. It POSTs JSON
+
+```
+{"ip": "100.x.y.z", "tailscaleIp": "100.x.y.z", "lanIp": "192.168.x.y", "port": 40000,
+ "adbWifi": "on", "ts": 1700000000000, "device": "<device name>"}
+```
+
+only when the value changed, or about once an hour as a heartbeat (`adbWifi: "off"` and `port: null`
+when wireless debugging is off). Settings shows "Last reported: ip:port at HH:MM". Nothing on the
+phone is turned on or off. Empty URL = disabled. No URL is built in; the endpoint should only be
+reachable from your own network (e.g. a tailnet).
+
 ## Street View
 
 Optionally, each stop with coordinates shows a square Street View image (96 dp, rounded) to the right of

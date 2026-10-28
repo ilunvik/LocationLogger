@@ -105,6 +105,7 @@ class MainActivity : Activity() {
         btnBattery.setOnClickListener { askIgnoreBatteryOptimizations() }
         setupPlaces(savedInstanceState != null)
         setupStreetView()
+        setupDashboard()
         updatePlaceThumbs()
 
         chkGpsOff = findViewById(R.id.chkGpsOff)
@@ -283,6 +284,26 @@ class MainActivity : Activity() {
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(edit.windowToken, 0)
             show()
             refresh()
+        }
+    }
+
+    private fun setupDashboard() {
+        val edit = findViewById<EditText>(R.id.editDashboardUrl)
+        edit.setText(AdbReporter.url(this))
+        findViewById<Button>(R.id.btnSaveDashboardUrl).setOnClickListener {
+            val u = edit.text.toString().trim()
+            if (u.isNotEmpty() && !(u.startsWith("https://") || u.startsWith("http://"))) {
+                Toast.makeText(this, "The URL must start with https://", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            AdbReporter.saveUrl(this, u)
+            edit.clearFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(edit.windowToken, 0)
+            if (u.isNotEmpty()) {
+                findViewById<TextView>(R.id.dashboardStatus).text = "Saved – reporting…"
+                AdbReporter.maybeReport(this, force = true)
+                edit.postDelayed({ refresh() }, 9000)
+            } else refresh()
         }
     }
 
@@ -572,6 +593,8 @@ class MainActivity : Activity() {
             "\n" + gps + "\n" + perm +
             (if (isIgnoringBattery()) "\nBattery optimization: off" else "\nBattery optimization: on (may stop logging)") +
             (if (CheckAlarm.canExact(this)) "\nWake-up alarms: exact" else "\nWake-up alarms: inexact (exact alarms not allowed; checks may be late with the screen off)")
+        findViewById<TextView>(R.id.dashboardStatus).text =
+            if (AdbReporter.url(this).isEmpty()) "Off" else (AdbReporter.status(this) ?: "Not reported yet")
         lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")
         btnBackground.isEnabled = !hasBackgroundLocation()
         btnBattery.isEnabled = !isIgnoringBattery()
