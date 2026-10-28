@@ -685,16 +685,16 @@ class MainActivity : Activity() {
                 })
             }
 
-            val arrived = "arrived " + timeFmt.format(Date(v.arrival))
+            val arrived = timeFmt.format(Date(v.arrival))
             val dep = v.departure
             fun at(t: Long) = if (sameDay(v.arrival, t)) timeFmt.format(Date(t)) else
                 SimpleDateFormat("EEE d MMM HH:mm", Locale.ENGLISH).format(Date(t))
             val (times, duration) = when {
                 isCurrent && running -> "$arrived – now" to "${formatDuration(now - v.arrival)} so far"
                 dep != null && isCurrent -> "$arrived – last seen ${at(dep)} (logging stopped)" to formatDuration(dep - v.arrival)
-                dep != null -> "$arrived – left ${at(dep)}" to formatDuration(dep - v.arrival)
-                next != null -> "$arrived – left ?" to "up to ${formatDuration(next.arrival - v.arrival)}"
-                else -> "$arrived – left ?" to null
+                dep != null -> "$arrived – ${at(dep)}" to formatDuration(dep - v.arrival)
+                next != null -> "$arrived – ?" to "up to ${formatDuration(next.arrival - v.arrival)}"
+                else -> "$arrived – ?" to null
             }
             val details = duration ?: ""
 
