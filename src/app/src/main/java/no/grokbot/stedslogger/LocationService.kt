@@ -65,9 +65,13 @@ class LocationService : Service() {
     private var lastTickAt = 0L
 
     // In-flight one-shot request (cancelled/removed as soon as the check finishes or times out)
-    private var pendingCancel: CancellationSignal? = null
-    private var pendingListener: LocationListener? = null
+    private val pendingCancels = mutableListOf<CancellationSignal>()
+    private val pendingListeners = mutableListOf<LocationListener>()
     private var pendingTimeout: Runnable? = null
+
+    // Passive listener while logging: remembers fixes other apps / the system obtain, as a fallback
+    private var passiveListener: LocationListener? = null
+    @Volatile private var passiveLast: Location? = null
 
     // True while we have switched the system location on for the current check
     private var gpsToggledForCheck = false
@@ -161,6 +165,7 @@ class LocationService : Service() {
             instance = this
             executor.execute { try { LogStore.deleteOldTextLogsOnce(this) } catch (e: Exception) { Log.w(TAG, "text log cleanup failed", e) } }
             acquireWakeLock()
+            startPassive()
             LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
             // Continue the earlier schedule if the service was restarted (boot, update, killed)
             lastTickAt = LogStore.prefs(this).getLong(KEY_LAST_TICK_AT, 0L)
@@ -182,6 +187,7 @@ class LocationService : Service() {
         running = false
         instance = null
         CheckAlarm.cancel(this)
+        stopPassive()
         handler.removeCallbacksAndMessages(null)
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         cancelPending()
@@ -197,6 +203,7 @@ class LocationService : Service() {
         if (instance === this) instance = null
         // The alarm is kept if logging is still on: it restarts the service if Android killed it
         releaseCheckWake()
+        stopPassive()
         handler.removeCallbacksAndMessages(null)
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         cancelPending()
@@ -293,12 +300,11 @@ class LocationService : Service() {
     private fun cancelPending() {
         pendingTimeout?.let { handler.removeCallbacks(it) }
         pendingTimeout = null
-        pendingCancel?.cancel()
-        pendingCancel = null
-        pendingListener?.let { l ->
-            try { (getSystemService(LOCATION_SERVICE) as LocationManager).removeUpdates(l) } catch (_: Exception) {}
-        }
-        pendingListener = null
+        pendingCancels.forEach { try { it.cancel() } catch (_: Exception) {} }
+        pendingCancels.clear()
+        val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+        pendingListeners.forEach { l -> try { lm.removeUpdates(l) } catch (_: Exception) {} }
+        pendingListeners.clear()
     }
 
     /** Turns system location off again only if it was off before this check (we turned it on). */
@@ -315,11 +321,45 @@ class LocationService : Service() {
         releaseCheckWake()
     }
 
+    private fun enabled(lm: LocationManager, p: String) =
+        try { lm.allProviders.contains(p) && lm.isProviderEnabled(p) } catch (_: Exception) { false }
+
     private fun availableProviders(lm: LocationManager) = buildList {
-        if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER) &&
+        if (enabled(lm, LocationManager.GPS_PROVIDER) &&
             checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         ) add(LocationManager.GPS_PROVIDER)
-        if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) add(LocationManager.NETWORK_PROVIDER)
+        if (enabled(lm, LocationManager.NETWORK_PROVIDER)) add(LocationManager.NETWORK_PROVIDER)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && enabled(lm, LocationManager.FUSED_PROVIDER))
+            add(LocationManager.FUSED_PROVIDER)
+    }
+
+    private fun hasBackgroundPermission() = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+        checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /** Starts a passive listener (no extra battery use) that remembers the newest fix any app gets. */
+    @SuppressLint("MissingPermission")
+    private fun startPassive() {
+        if (passiveListener != null || !hasLocationPermission()) return
+        val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+        if (!lm.allProviders.contains(LocationManager.PASSIVE_PROVIDER)) return
+        val l = object : LocationListener {
+            override fun onLocationChanged(location: Location) { passiveLast = location }
+            @Deprecated("Deprecated in Java")
+            override fun onStatusChanged(p: String?, s: Int, e: android.os.Bundle?) {}
+            override fun onProviderEnabled(p: String) {}
+            override fun onProviderDisabled(p: String) {}
+        }
+        try {
+            lm.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 60_000L, 0f, l, Looper.getMainLooper())
+            passiveListener = l
+        } catch (e: Exception) { Log.w(TAG, "passive listener failed", e) }
+    }
+
+    private fun stopPassive() {
+        passiveListener?.let { l ->
+            try { (getSystemService(LOCATION_SERVICE) as LocationManager).removeUpdates(l) } catch (_: Exception) {}
+        }
+        passiveListener = null
     }
 
     private fun checkLocation() {
@@ -370,53 +410,93 @@ class LocationService : Service() {
         requestFix(lm, providers, 0)
     }
 
+    /** Elapsed-realtime age of a fix in ms (works even if the fix's wall-clock time is off). */
+    private fun ageMs(l: Location) =
+        (android.os.SystemClock.elapsedRealtimeNanos() - l.elapsedRealtimeNanos) / 1_000_000L
+
+    /**
+     * Asks all enabled providers (GPS, network, fused) at the same time. The first fix with an
+     * accuracy of <= 100 m wins at once; otherwise the most accurate fix when all providers have
+     * answered or [FIX_TIMEOUT_MS] has passed. Without any fix, a recent last-known / passive fix
+     * (not older than the interval) is used and marked as such; else the real reason is shown.
+     */
     @SuppressLint("MissingPermission")
-    private fun requestFix(lm: LocationManager, providers: List<String>, index: Int) {
-        if (index >= providers.size) {
-            // Fallback: a recent last-known location
-            val last = providers.mapNotNull { try { lm.getLastKnownLocation(it) } catch (e: Exception) { null } }
-                .filter { System.currentTimeMillis() - it.time < MAX_LAST_KNOWN_AGE_MS }
-                .maxByOrNull { it.time }
-            if (last != null) { gpsOffAfterFix(); onLocation(last) } else endCheck("No location found")
-            return
-        }
-        val provider = providers[index]
+    private fun requestFix(lm: LocationManager, providers: List<String>, @Suppress("UNUSED_PARAMETER") index: Int) {
+        val results = LinkedHashMap<String, Location?>()
+        val errors = LinkedHashMap<String, String>()
         var done = false
-        val finish: (Location?) -> Unit = { loc ->
-            if (!done) {
-                done = true
-                cancelPending() // release the one-shot request right away
-                if (loc != null) { gpsOffAfterFix(); onLocation(loc) } else requestFix(lm, providers, index + 1)
+
+        fun finishWith(loc: Location?, note: String?) {
+            if (done) return
+            done = true
+            cancelPending()
+            if (note != null) toggleNote = listOfNotNull(toggleNote, note).joinToString(" · ")
+            if (loc != null) { gpsOffAfterFix(); onLocation(loc); return }
+            // No fresh fix: a recent last-known or passive fix
+            val maxAge = maxOf(intervalMs(), MAX_LAST_KNOWN_AGE_MS)
+            val candidates = (providers + LocationManager.PASSIVE_PROVIDER).mapNotNull {
+                try { lm.getLastKnownLocation(it) } catch (_: Exception) { null }
+            } + listOfNotNull(passiveLast)
+            val last = candidates.filter { ageMs(it) in 0..maxAge }.minByOrNull { ageMs(it) }
+            val detail = providers.joinToString(", ") { p ->
+                "$p: " + (errors[p] ?: if (results.containsKey(p)) "no fix" else "no answer in ${FIX_TIMEOUT_MS / 1000} s")
+            }
+            if (last != null) {
+                toggleNote = listOfNotNull(toggleNote,
+                    "last known fix (${last.provider}, ${ageMs(last) / 60_000} min old); no new fix: $detail").joinToString(" · ")
+                gpsOffAfterFix()
+                onLocation(last)
+            } else {
+                val why = if (!hasBackgroundPermission())
+                    " – location is allowed only while the app is in use; set it to \"Allow all the time\"" else ""
+                endCheck("No location found ($detail)$why")
             }
         }
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val cancel = CancellationSignal()
-                pendingCancel = cancel
-                val t = Runnable { if (!done) finish(null) }
-                pendingTimeout = t
-                handler.postDelayed(t, FIX_TIMEOUT_MS)
-                lm.getCurrentLocation(provider, cancel, mainExecutor) { loc -> handler.post { finish(loc) } }
-            } else {
-                val listener = object : LocationListener {
-                    override fun onLocationChanged(location: Location) {
-                        finish(location)
-                    }
-                    @Deprecated("Deprecated in Java")
-                    override fun onStatusChanged(p: String?, s: Int, e: android.os.Bundle?) {}
-                    override fun onProviderEnabled(p: String) {}
-                    override fun onProviderDisabled(p: String) {}
-                }
-                pendingListener = listener
-                val t = Runnable { if (!done) finish(null) }
-                pendingTimeout = t
-                handler.postDelayed(t, FIX_TIMEOUT_MS)
-                @Suppress("DEPRECATION")
-                lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+
+        fun onResult(p: String, loc: Location?) {
+            if (done) return
+            results[p] = loc
+            if (loc != null && (!loc.hasAccuracy() || loc.accuracy <= VisitStore.MAX_ACCURACY_M)) {
+                finishWith(loc, null); return
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "location request failed for $provider", e)
-            finish(null)
+            if (results.size >= providers.size) {
+                finishWith(results.values.filterNotNull().minByOrNull { if (it.hasAccuracy()) it.accuracy else Float.MAX_VALUE }, null)
+            }
+        }
+
+        val t = Runnable {
+            if (!done) finishWith(results.values.filterNotNull()
+                .minByOrNull { if (it.hasAccuracy()) it.accuracy else Float.MAX_VALUE }, null)
+        }
+        pendingTimeout = t
+        handler.postDelayed(t, FIX_TIMEOUT_MS)
+
+        for (provider in providers) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val cancel = CancellationSignal()
+                    pendingCancels += cancel
+                    lm.getCurrentLocation(provider, cancel, mainExecutor) { loc -> handler.post { onResult(provider, loc) } }
+                } else {
+                    val listener = object : LocationListener {
+                        override fun onLocationChanged(location: Location) { onResult(provider, location) }
+                        @Deprecated("Deprecated in Java")
+                        override fun onStatusChanged(p: String?, s: Int, e: android.os.Bundle?) {}
+                        override fun onProviderEnabled(p: String) {}
+                        override fun onProviderDisabled(p: String) { onResult(provider, null) }
+                    }
+                    pendingListeners += listener
+                    @Suppress("DEPRECATION")
+                    lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+                }
+            } catch (e: SecurityException) {
+                errors[provider] = "permission denied"
+                onResult(provider, null)
+            } catch (e: Exception) {
+                Log.w(TAG, "location request failed for $provider", e)
+                errors[provider] = "error: ${e.javaClass.simpleName}"
+                onResult(provider, null)
+            }
         }
     }
 

@@ -233,7 +233,13 @@ adb install -r app-release.apk
   the app falls back to `setAndAllowWhileIdle` (Settings shows "Wake-up alarms: exact/inexact"). The
   alarm is cancelled when logging stops and set again when the service restarts (boot, update). Some
   phones ignore an app's wake lock (Samsung), which is why a Handler timer alone stalled in deep sleep;
-  a short timed wake lock is still held during each check. GPS itself is only used during each check. Short intervals use more battery.
+  a short timed wake lock is still held during each check. GPS itself is only used during each check.
+- Each check asks GPS, network and (Android 12+) the fused provider at the same time; the first fix
+  with an accuracy of 100 m or better wins, otherwise the most accurate one within 60 s. Without a
+  new fix, a recent last-known or passively received fix (not older than the interval, at least 10
+  min) is used and marked "last known fix" in *Last check*. Otherwise *Last check* shows why, per
+  provider (no fix / no answer in 60 s / permission denied), and hints when location is allowed only
+  while the app is in use. Short intervals use more battery.
 - Turning location on/off by writing `LOCATION_MODE` works on most Android versions but is not
   guaranteed on every vendor build; if Android ignores the change the app shows a warning and tries a fix
   anyway.
