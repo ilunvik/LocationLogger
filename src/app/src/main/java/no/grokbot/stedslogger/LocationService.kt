@@ -216,7 +216,8 @@ class LocationService : Service() {
 
     private fun setLastCheck(msg: String) {
         val note = toggleNote?.takeIf { it != msg }?.let { " · $it" } ?: ""
-        LogStore.prefs(this).edit().putString(LogStore.KEY_LAST_CHECK, "${now("HH:mm")}: $msg$note").apply()
+        LogStore.prefs(this).edit().putString(LogStore.KEY_LAST_CHECK, "${now("HH:mm")}: $msg$note")
+            .putLong(LogStore.KEY_LAST_CHECK_AT, System.currentTimeMillis()).apply()
     }
 
     // ---------- location ----------

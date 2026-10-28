@@ -18,6 +18,7 @@ object LogStore {
     const val KEY_LAST_ADDRESS = "last_address"          // place of the latest visit (after the place list)
     const val KEY_LAST_RAW_ADDRESS = "last_raw_address"  // last address exactly as the geocoder gave it
     const val KEY_LAST_CHECK = "last_check"
+    const val KEY_LAST_CHECK_AT = "last_check_at"    // when KEY_LAST_CHECK was last written (ms)
     private const val KEY_FILE_URI = "file_uri"
     private const val KEY_IMPORTED_FROM_TEXT = "visits_imported_from_text"
     private const val KEY_TEXT_LOG_DELETED = "text_log_deleted"

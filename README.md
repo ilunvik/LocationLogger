@@ -35,7 +35,8 @@ in a file manager, removed on uninstall). Nothing is written to shared storage.
 The app has two tabs:
 
 - **Visits** – running/stopped status (with a warning if a permission or battery setting needs
-  attention), the last check, **Check now**, the "Seen once" candidate and the visit list. The
+  attention), the last check, **Check now** (its progress, "Checking now …", and then its result are shown in the
+  status line for 2 minutes), the "Seen once" candidate and the visit list. The
   current visit's duration updates every minute.
 - **Settings** – detailed status (GPS control, location permission, battery optimization),
   **Start / Stop logging** and the settings below. Back on the Settings tab returns to Visits; the

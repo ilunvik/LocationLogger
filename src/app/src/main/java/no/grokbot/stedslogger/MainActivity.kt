@@ -30,6 +30,11 @@ class MainActivity : Activity() {
         private const val REQ_BACKGROUND = 2
         private const val MAX_VISITS = 300
         private const val KEY_TAB = "ui_tab"
+        /** A manual check gives up waiting for a result after this long (two 60 s fix attempts + GPS on). */
+        private const val MANUAL_TIMEOUT_MS = 3 * 60_000L
+        /** How long the result of a manual check stays in the status line. */
+        private const val MANUAL_RESULT_MS = 2 * 60_000L
+        private const val STATE_MANUAL_START = "manual_start"
     }
 
     private lateinit var status: TextView
@@ -45,6 +50,11 @@ class MainActivity : Activity() {
     private lateinit var btnPlaces: Button
     private lateinit var chkGpsOff: CheckBox
     private lateinit var editInterval: EditText
+
+    /** Start time of the last "Check now" (0 = none); its progress/result is shown in the status line. */
+    private var manualStart = 0L
+    private var manualError: String? = null
+    private val manualExpire = Runnable { refresh() }
 
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         runOnUiThread { refresh() }
@@ -62,6 +72,7 @@ class MainActivity : Activity() {
         visits = findViewById(R.id.visits)
         btnBackground = findViewById(R.id.btnBackground)
         btnBattery = findViewById(R.id.btnBattery)
+        manualStart = savedInstanceState?.getLong(STATE_MANUAL_START, 0L) ?: 0L
 
         findViewById<Button>(R.id.btnStart).setOnClickListener { onStartClicked() }
         findViewById<Button>(R.id.btnStop).setOnClickListener {
@@ -71,8 +82,11 @@ class MainActivity : Activity() {
         }
         findViewById<Button>(R.id.btnNow).setOnClickListener {
             if (!hasForegroundLocation()) { onStartClicked(); return@setOnClickListener }
-            LocationService.start(this, LocationService.ACTION_CHECK_NOW)
-            Toast.makeText(this, "Checking location …", Toast.LENGTH_SHORT).show()
+            manualStart = System.currentTimeMillis()
+            manualError = try {
+                LocationService.start(this, LocationService.ACTION_CHECK_NOW); null
+            } catch (e: Exception) { "could not start the check: ${e.message}" }
+            refresh()
         }
         btnBackground.setOnClickListener { askBackgroundLocation() }
         btnBattery.setOnClickListener { askIgnoreBatteryOptimizations() }
@@ -102,9 +116,50 @@ class MainActivity : Activity() {
         uiHandler.post(minuteTick) // refreshes now and every minute (running duration)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putLong(STATE_MANUAL_START, manualStart)
+    }
+
+    /**
+     * Line for the status while a manual check runs ("Checking now …") and, for
+     * [MANUAL_RESULT_MS] afterwards, its result (the service's last-check text). Null when idle.
+     */
+    private fun manualLine(p: SharedPreferences): String? {
+        if (manualStart == 0L) return null
+        val now = System.currentTimeMillis()
+        uiHandler.removeCallbacks(manualExpire)
+        manualError?.let { err ->
+            if (now - manualStart < MANUAL_RESULT_MS) {
+                uiHandler.postDelayed(manualExpire, manualStart + MANUAL_RESULT_MS - now)
+                return "Check now: $err"
+            }
+            manualStart = 0L; manualError = null; return null
+        }
+        val doneAt = p.getLong(LogStore.KEY_LAST_CHECK_AT, 0L)
+        if (doneAt >= manualStart) {
+            if (now - doneAt < MANUAL_RESULT_MS) {
+                uiHandler.postDelayed(manualExpire, doneAt + MANUAL_RESULT_MS - now)
+                val res = p.getString(LogStore.KEY_LAST_CHECK, null) ?: "done"
+                return "Check now – $res"
+            }
+            manualStart = 0L; return null
+        }
+        if (now - manualStart < MANUAL_TIMEOUT_MS) {
+            uiHandler.postDelayed(manualExpire, manualStart + MANUAL_TIMEOUT_MS - now)
+            return "Checking now …"
+        }
+        if (now - manualStart < MANUAL_TIMEOUT_MS + MANUAL_RESULT_MS) {
+            uiHandler.postDelayed(manualExpire, manualStart + MANUAL_TIMEOUT_MS + MANUAL_RESULT_MS - now)
+            return "Check now: no result after ${MANUAL_TIMEOUT_MS / 60_000} min"
+        }
+        manualStart = 0L; return null
+    }
+
     override fun onPause() {
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         uiHandler.removeCallbacks(minuteTick)
+        uiHandler.removeCallbacks(manualExpire)
         super.onPause()
     }
 
@@ -353,6 +408,7 @@ class MainActivity : Activity() {
             if (!isIgnoringBattery()) "battery optimization on" else null,
         )
         if (warnings.isNotEmpty()) status.text = "${status.text}\n⚠ ${warnings.joinToString(", ")} (see Settings)"
+        manualLine(p)?.let { status.text = "${status.text}\n$it" }
         settingsStatus.text = (if (running) "● Running – checking every $interval min" else "○ Stopped – interval $interval min") +
             "\n" + gps + "\n" + perm +
             (if (isIgnoringBattery()) "\nBattery optimization: off" else "\nBattery optimization: on (may stop logging)")
