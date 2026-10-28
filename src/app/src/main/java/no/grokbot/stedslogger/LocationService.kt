@@ -31,6 +31,7 @@ import java.util.concurrent.Executors
 class LocationService : Service() {
 
     companion object {
+        private const val NET_DEBOUNCE_MS = 4000L
         private const val TAG = "LocationLogger"
         const val ACTION_START = "no.grokbot.stedslogger.START"
         const val ACTION_STOP = "no.grokbot.stedslogger.STOP"
@@ -99,17 +100,25 @@ class LocationService : Service() {
         try { AdbReporter.maybeReport(this) } catch (e: Exception) { Log.w(TAG, "adb report failed", e) }
     }
 
-    // Network changes: report the wireless-debugging address again (debounced; only if a URL is set)
+    // Network changes: report the wireless-debugging address right away so the dashboard host can react
+    // (debounced a few seconds so a burst of callbacks becomes one report; only if a URL is set)
     private var netCallback: android.net.ConnectivityManager.NetworkCallback? = null
-    private val netReport = Runnable { try { AdbReporter.maybeReport(this) } catch (_: Exception) {} }
+    private val netReport = Runnable { try { AdbReporter.maybeReport(this, force = true) } catch (_: Exception) {} }
+    private fun scheduleNetReport(delayMs: Long = NET_DEBOUNCE_MS) { handler.removeCallbacks(netReport); handler.postDelayed(netReport, delayMs) }
 
     private fun startNetWatch() {
         if (netCallback != null) return
         val cm = getSystemService(android.net.ConnectivityManager::class.java) ?: return
         val cb = object : android.net.ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: android.net.Network) { handler.removeCallbacks(netReport); handler.postDelayed(netReport, 8000) }
-            override fun onLinkPropertiesChanged(network: android.net.Network, lp: android.net.LinkProperties) {
-                handler.removeCallbacks(netReport); handler.postDelayed(netReport, 8000)
+            private var wasWifi: Boolean? = null
+            override fun onAvailable(network: android.net.Network) = scheduleNetReport()
+            override fun onLost(network: android.net.Network) = scheduleNetReport()
+            override fun onLinkPropertiesChanged(network: android.net.Network, lp: android.net.LinkProperties) = scheduleNetReport()
+            override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) {
+                // Only react when the default network switches between Wi-Fi and something else (not signal changes)
+                val wifi = caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+                if (wasWifi != null && wasWifi != wifi) scheduleNetReport()
+                wasWifi = wifi
             }
         }
         try { cm.registerDefaultNetworkCallback(cb); netCallback = cb } catch (e: Exception) { Log.w(TAG, "network callback", e) }
@@ -191,6 +200,7 @@ class LocationService : Service() {
             acquireWakeLock()
             startPassive()
             startNetWatch()
+            scheduleNetReport() // report once on service start (boot, update, restart)
             LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
             // Continue the earlier schedule if the service was restarted (boot, update, killed)
             lastTickAt = LogStore.prefs(this).getLong(KEY_LAST_TICK_AT, 0L)

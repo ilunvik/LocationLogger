@@ -104,13 +104,14 @@ object AdbReporter {
      * on (Settings.Global adb_wifi_enabled = 1) when it is off and the phone is on Wi-Fi. This is the
      * only setting written here.
      */
-    fun ensureWifiDebugging(ctx: Context) {
-        if (!keepWifiOn(ctx) || !GpsToggle.hasPermission(ctx)) return
+    fun ensureWifiDebugging(ctx: Context): Boolean {
+        if (!keepWifiOn(ctx) || !GpsToggle.hasPermission(ctx)) return false
         val cur = try { Settings.Global.getInt(ctx.contentResolver, "adb_wifi_enabled", -1) } catch (_: Exception) { -1 }
-        if (cur != 0 || !onWifi(ctx)) return
+        if (cur != 0 || !onWifi(ctx)) return false
         val ok = try { Settings.Global.putInt(ctx.contentResolver, "adb_wifi_enabled", 1) } catch (e: Exception) { Log.w(TAG, "adb_wifi_enabled", e); false }
         LogStore.prefs(ctx).edit().putString(KEY_KEEP_STATUS,
             "${hhmm()}: " + (if (ok) "turned wireless debugging on" else "could not turn wireless debugging on")).apply()
+        return ok
     }
 
     /**
@@ -143,13 +144,23 @@ object AdbReporter {
         val u = url(ctx)
         if (u.isEmpty()) return
         val now = System.currentTimeMillis()
-        if (running || (!force && now - lastRunAt < MIN_GAP_MS)) return
+        if (running) { if (force) pendingForce = true; return }
+        if (!force && now - lastRunAt < MIN_GAP_MS) return
         running = true
         lastRunAt = now
-        try { ensureWifiDebugging(ctx) } catch (_: Exception) {}
+        val turnedOn = try { ensureWifiDebugging(ctx) } catch (_: Exception) { false }
         val wifi = adbWifi(ctx)
         if (wifi == "off") { io.execute { finish(ctx, u, wifi, null, force, tcp5555()) }; return }
-        discoverPort(ctx) { port -> io.execute { finish(ctx, u, wifi, port, force, tcp5555()) } }
+        val find = { discoverPort(ctx) { port -> io.execute { finish(ctx, u, wifi, port, force || turnedOn, tcp5555()) } } }
+        // Just switched on: give adbd a few seconds to publish its new port via NSD before looking it up
+        if (turnedOn) main.postDelayed(find, 4000) else find()
+    }
+
+    /** A forced report that arrived while one was running is sent right after it. */
+    @Volatile private var pendingForce = false
+    private fun done(ctx: Context) {
+        running = false
+        if (pendingForce) { pendingForce = false; main.postDelayed({ maybeReport(ctx, force = true) }, 2000) }
     }
 
     /** Runs on [io]. */
@@ -158,7 +169,7 @@ object AdbReporter {
         LogStore.prefs(ctx).edit().putBoolean(KEY_TCP, tcp).apply()
         if (wifi != "off" && port == null && !tcp) {
             setStatus(ctx, "${hhmm()}: wireless debugging port not found (not reported)")
-            running = false
+            done(ctx)
             return
         }
         val ip = ts ?: lan
@@ -166,7 +177,7 @@ object AdbReporter {
         val p = LogStore.prefs(ctx)
         val due = force || sig != p.getString(KEY_SIG, null) ||
             System.currentTimeMillis() - p.getLong(KEY_AT, 0L) > HEARTBEAT_MS
-        if (!due) { running = false; return }
+        if (!due) { done(ctx); return }
         val body = JSONObject().apply {
             put("ip", ip ?: JSONObject.NULL); put("tailscaleIp", ts ?: JSONObject.NULL); put("lanIp", lan ?: JSONObject.NULL)
             put("port", port ?: JSONObject.NULL); put("adbWifi", wifi); put("ts", System.currentTimeMillis())
@@ -190,7 +201,7 @@ object AdbReporter {
                 } else setStatus(ctx, "${hhmm()}: dashboard answered HTTP $code ($shown not reported)")
             } catch (e: Exception) {
                 setStatus(ctx, "${hhmm()}: could not reach the dashboard (${e.javaClass.simpleName})")
-            } finally { running = false }
+            } finally { done(ctx) }
         }
     }
 

@@ -107,8 +107,11 @@ so the current `adb connect` port is always known. On each check and on network 
 ```
 
 (plus `"tcp5555": true/false` – whether adbd listens on TCP 5555, i.e. `adb tcpip 5555` mode, read from
-`/proc/net/tcp*` or a short local connection attempt) only when the value changed, right after boot, or
-about once an hour as a heartbeat (`adbWifi: "off"` and `port: null`
+`/proc/net/tcp*` or a short local connection attempt). It reports right away (debounced ~4 s) on every
+network change (Wi-Fi/mobile switch, network lost/available, new IP), after boot and app updates, when the
+logging service starts, and right after it has switched wireless debugging back on (once the new port is
+found via NSD); otherwise only when the value changed, or about once an hour as a heartbeat. The dashboard
+host can react to each report (e.g. switch adbd to TCP 5555) instead of polling (`adbWifi: "off"` and `port: null`
 when wireless debugging is off). Settings shows "Last reported: ip:port at HH:MM". **Keep wireless debugging on** (default on): if
 the app has `WRITE_SECURE_SETTINGS` (granted via `adb shell pm grant no.grokbot.stedslogger
 android.permission.WRITE_SECURE_SETTINGS`) and wireless debugging is off while the phone is on Wi-Fi,
