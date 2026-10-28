@@ -291,7 +291,7 @@ class MainActivity : Activity() {
         Places.placeName(places, name)?.let { StreetView.placeSlot(it) } ?: StreetView.spotSlot(lat, lon)
 
     /**
-     * Full-width banner (140 dp, rounded) for a stop: the Place's / spot's stored image, or Street View.
+     * Square image (96 dp, rounded, right of the stop's text) for a stop: the Place's / spot's stored image, or Street View.
      * Tap opens Google Maps with a pin; long-press opens the image menu.
      */
     private fun streetViewImage(slot: StreetView.Slot, lat: Double, lon: Double): android.view.View? {
@@ -300,11 +300,11 @@ class MainActivity : Activity() {
         if (StreetView.knownNone(slot)) return null
         val img = android.widget.ImageView(this).apply {
             layoutParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(140)
-            ).apply { topMargin = dp(4) }
+                dp(96), dp(96)
+            ).apply { marginStart = dp(8) }
             scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
             setBackgroundColor(0xFFE0E0E0.toInt())
-            val r = dp(10).toFloat()
+            val r = dp(8).toFloat()
             outlineProvider = object : android.view.ViewOutlineProvider() {
                 override fun getOutline(view: android.view.View, outline: android.graphics.Outline) =
                     outline.setRoundRect(0, 0, view.width, view.height, r)
@@ -381,7 +381,7 @@ class MainActivity : Activity() {
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 setPadding(0, dp(2), 0, dp(2))
                 addView(android.widget.ImageView(this@MainActivity).apply {
-                    layoutParams = android.widget.LinearLayout.LayoutParams(dp(64), dp(40))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(dp(48), dp(48))
                     scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
                     setImageBitmap(bmp)
                 })
@@ -699,16 +699,25 @@ class MainActivity : Activity() {
             val details = duration ?: ""
 
             visits.addView(android.widget.LinearLayout(this).apply {
-                orientation = android.widget.LinearLayout.VERTICAL
+                // Text on the left (full width when there is no image), square image on the right
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.TOP
                 setPadding(dp(8), dp(6), 0, dp(6))
-                addView(TextView(this@MainActivity).apply {
+                val row = this
+                val textCol = android.widget.LinearLayout(this@MainActivity).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                addView(textCol)
+                textCol.addView(TextView(this@MainActivity).apply {
                     text = (if (isCurrent && running) "● " else "") + v.name
                     textSize = 16f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                     setTextIsSelectable(true)
                 })
-                addView(TextView(this@MainActivity).apply { text = times; textSize = 14f })
-                if (details.isNotEmpty()) addView(TextView(this@MainActivity).apply {
+                textCol.addView(TextView(this@MainActivity).apply { text = times; textSize = 14f })
+                if (details.isNotEmpty()) textCol.addView(TextView(this@MainActivity).apply {
                     text = details
                     textSize = 13f
                     setTextColor(0xFF616161.toInt())
@@ -717,8 +726,8 @@ class MainActivity : Activity() {
                 val lon = v.lon
                 if (lat != null && lon != null) {
                     val slot = slotFor(v.name, lat, lon, placeMap)
-                    streetViewImage(slot, lat, lon)?.let { addView(it) }
-                    setOnLongClickListener { imageMenu(slot, lat, lon); true }
+                    streetViewImage(slot, lat, lon)?.let { row.addView(it) }
+                    row.setOnLongClickListener { imageMenu(slot, lat, lon); true }
                 }
             })
             // Driving from the previous stop to this one (shown under the arriving stop, in its day)

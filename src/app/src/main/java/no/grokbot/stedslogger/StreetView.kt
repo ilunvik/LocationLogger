@@ -198,7 +198,7 @@ object StreetView {
         get(ctx, "https://maps.googleapis.com/maps/api/streetview/metadata?" + common(apiKey, lat, lon)), Charsets.UTF_8))
 
     private fun imageUrl(apiKey: String, lat: Double, lon: Double, heading: Int?) =
-        "https://maps.googleapis.com/maps/api/streetview?size=640x320&" + common(apiKey, lat, lon) +
+        "https://maps.googleapis.com/maps/api/streetview?size=640x640&" + common(apiKey, lat, lon) +
             (heading?.let { "&heading=$it" } ?: "")
 
     private fun writeAtomic(f: File, bytes: ByteArray) {
@@ -267,14 +267,14 @@ object StreetView {
         null
     }
 
-    /** "Choose photo…": decode [uri], fix rotation, scale to at most 640 px wide and store it. */
+    /** "Choose photo…": decode [uri], fix rotation, center-crop to a square, scale to at most 640×640 and store it. */
     fun fromPhoto(ctx: Context, slot: Slot, uri: android.net.Uri, done: (String?) -> Unit) = change(ctx, slot, done) { c ->
         val cr = c.contentResolver
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0) return@change "Could not read the image"
         var sample = 1
-        while (bounds.outWidth / (sample * 2) >= PHOTO_WIDTH) sample *= 2
+        while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= PHOTO_WIDTH) sample *= 2
         var bmp = cr.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
         } ?: return@change "Could not read the image"
@@ -293,9 +293,12 @@ object StreetView {
             val m = android.graphics.Matrix().apply { postRotate(rotation) }
             bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
         }
-        if (bmp.width > PHOTO_WIDTH) {
-            bmp = Bitmap.createScaledBitmap(bmp, PHOTO_WIDTH, (bmp.height.toLong() * PHOTO_WIDTH / bmp.width).toInt().coerceAtLeast(1), true)
+        // Center-crop to a square, then scale to at most PHOTO_WIDTH × PHOTO_WIDTH
+        val side = minOf(bmp.width, bmp.height)
+        if (bmp.width != bmp.height) {
+            bmp = Bitmap.createBitmap(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side)
         }
+        if (side > PHOTO_WIDTH) bmp = Bitmap.createScaledBitmap(bmp, PHOTO_WIDTH, PHOTO_WIDTH, true)
         val out = java.io.ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
         saveSlot(c, slot, out.toByteArray())

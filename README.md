@@ -91,7 +91,8 @@ repository.
 
 ## Street View
 
-Optionally, each stop with coordinates shows a Street View image (full width, 140 dp) on its row.
+Optionally, each stop with coordinates shows a square Street View image (96 dp, rounded) to the right of
+its text; stops without an image keep their text full width.
 Tapping the image opens the spot in Google Maps as a normal map with a pin
 (`https://www.google.com/maps/search/?api=1&query=lat,lon`; the Maps app if installed, otherwise
 the browser). Imported stops without coordinates get no image.
@@ -108,7 +109,8 @@ images and makes no network calls for them. To create a key:
 5. Restrict the API to **Street View Static API**.
 
 For each stop the app first asks the free metadata endpoint whether there is an outdoor panorama
-within 50 m; only if the status is `OK` is the 640×320 image downloaded. Requests carry the
+within 50 m; only if the status is `OK` is the square 640×640 image downloaded (older cached images are
+center-cropped by the view). Requests carry the
 `X-Android-Package` and `X-Android-Cert` headers so an Android-restricted key works.
 ### Image per place
 
@@ -118,13 +120,13 @@ the first time, Street View from that stop is fetched and saved as the place's i
 An unnamed stop uses its own spot (coordinates rounded to 5 decimals). Renaming a place gives it a
 new image. Long-press the image (or the stop row, e.g. after removing the image) for:
 
-- **Choose photo…** – pick a photo on the phone; it is scaled to 640 px wide and saved.
+- **Choose photo…** – pick a photo on the phone; it is center-cropped to a square, scaled to 640×640 and saved.
 - **Other Street View angle** – fetch Street View again, turned 90° further each time.
 - **Use Street View from this stop** – fetch Street View from this stop's coordinates.
 - **Remove image** – delete it and keep it hidden (no automatic refetch) until one of the options
   above is used.
 
-Places with a saved image are shown with a small thumbnail under the place list on the Settings tab.
+Places with a saved image are shown with a small square thumbnail under the place list on the Settings tab.
 Chosen photos are shown even without an API key.
 
 Downloads are cached in the app's private files (`files/streetview/`) by coordinates rounded to
