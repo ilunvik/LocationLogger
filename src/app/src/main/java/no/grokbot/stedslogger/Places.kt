@@ -20,7 +20,7 @@ object Places {
         LogStore.prefs(ctx).edit().putString(KEY_PLACES, text.trimEnd()).apply()
     }
 
-    private fun norm(s: String) = s.trim().replace(Regex("\\s+"), " ").lowercase(Locale.ROOT)
+    fun norm(s: String) = s.trim().replace(Regex("\\s+"), " ").lowercase(Locale.ROOT)
 
     /** Maps normalized address -> place name. The first line wins if an address is listed twice. */
     fun parse(text: String): Map<String, String> {
@@ -35,6 +35,14 @@ object Places {
         }
         return map
     }
+
+    /** Place names (first part of each line), in list order, without duplicates. */
+    fun names(text: String): List<String> =
+        parse(text).values.distinctBy { norm(it) }
+
+    /** The listed place name matching [name] (case/whitespace-insensitive), or null if [name] is not a place. */
+    fun placeName(map: Map<String, String>, name: String): String? =
+        map.values.firstOrNull { norm(it) == norm(name) }
 
     /** Number of valid place lines (a name plus at least one address). */
     fun count(text: String): Int = text.lines().count { l ->

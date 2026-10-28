@@ -272,6 +272,12 @@
                         android:textSize="13sp" />
                 </LinearLayout>
 
+                <LinearLayout
+                    android:id="@+id/placeThumbs"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
                 <!-- Street View images on the stop rows -->
                 <TextView
                     android:layout_width="match_parent"

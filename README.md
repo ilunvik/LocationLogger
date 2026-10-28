@@ -110,7 +110,24 @@ images and makes no network calls for them. To create a key:
 For each stop the app first asks the free metadata endpoint whether there is an outdoor panorama
 within 50 m; only if the status is `OK` is the 640×320 image downloaded. Requests carry the
 `X-Android-Package` and `X-Android-Cert` headers so an Android-restricted key works.
-Results are cached in the app's private files (`files/streetview/`) by coordinates rounded to
+### Image per place
+
+If a stop's name is a place in the [Places](#places) list, the image belongs to that **place**:
+the first time, Street View from that stop is fetched and saved as the place's image
+(`files/placeimages/`, app-private, never in this repository), and all stops of the place show it.
+An unnamed stop uses its own spot (coordinates rounded to 5 decimals). Renaming a place gives it a
+new image. Long-press the image (or the stop row, e.g. after removing the image) for:
+
+- **Choose photo…** – pick a photo on the phone; it is scaled to 640 px wide and saved.
+- **Other Street View angle** – fetch Street View again, turned 90° further each time.
+- **Use Street View from this stop** – fetch Street View from this stop's coordinates.
+- **Remove image** – delete it and keep it hidden (no automatic refetch) until one of the options
+  above is used.
+
+Places with a saved image are shown with a small thumbnail under the place list on the Settings tab.
+Chosen photos are shown even without an API key.
+
+Downloads are cached in the app's private files (`files/streetview/`) by coordinates rounded to
 5 decimals: the image, or a marker when Google has no panorama there, so each spot is fetched only
 once. Other errors (invalid key, quota, network) are not cached on disk and are retried after the
 app restarts or the key is saved again.

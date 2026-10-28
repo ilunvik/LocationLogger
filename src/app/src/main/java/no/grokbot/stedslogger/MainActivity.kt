@@ -28,6 +28,9 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_FOREGROUND = 1
         private const val REQ_BACKGROUND = 2
+        private const val REQ_PICK_IMAGE = 3
+        private const val STATE_PICK_ID = "pick_slot_id"
+        private const val STATE_PICK_LABEL = "pick_slot_label"
         private const val MAX_VISITS = 300
         private const val KEY_TAB = "ui_tab"
         /** A manual check gives up waiting for a result after this long (two 60 s fix attempts + GPS on). */
@@ -51,6 +54,8 @@ class MainActivity : Activity() {
     private lateinit var placesSaved: TextView
     private lateinit var btnInsertLast: Button
     private var placesJustSaved = false
+    /** Slot waiting for the photo picker result. */
+    private var pickSlot: StreetView.Slot? = null
     private lateinit var chkGpsOff: CheckBox
     private lateinit var editInterval: EditText
 
@@ -78,6 +83,9 @@ class MainActivity : Activity() {
         btnBackground = findViewById(R.id.btnBackground)
         btnBattery = findViewById(R.id.btnBattery)
         manualStart = savedInstanceState?.getLong(STATE_MANUAL_START, 0L) ?: 0L
+        savedInstanceState?.getString(STATE_PICK_ID)?.let { id ->
+            pickSlot = StreetView.Slot(id, savedInstanceState.getString(STATE_PICK_LABEL) ?: "")
+        }
 
         findViewById<Button>(R.id.btnStart).setOnClickListener { onStartClicked() }
         findViewById<Button>(R.id.btnStop).setOnClickListener {
@@ -97,6 +105,7 @@ class MainActivity : Activity() {
         btnBattery.setOnClickListener { askIgnoreBatteryOptimizations() }
         setupPlaces(savedInstanceState != null)
         setupStreetView()
+        updatePlaceThumbs()
 
         chkGpsOff = findViewById(R.id.chkGpsOff)
         chkGpsOff.isChecked = LogStore.gpsOffBetween(this)
@@ -124,6 +133,7 @@ class MainActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putLong(STATE_MANUAL_START, manualStart)
+        pickSlot?.let { outState.putString(STATE_PICK_ID, it.id); outState.putString(STATE_PICK_LABEL, it.label) }
     }
 
     /**
@@ -276,11 +286,18 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Full-width Street View banner (140 dp, rounded) for a stop; tapping opens Google Maps with a pin. */
-    private fun streetViewImage(lat: Double, lon: Double): android.view.View? {
-        if (StreetView.apiKey(this) == null) return null
-        val key = StreetView.cacheKey(lat, lon)
-        if (StreetView.knownNone(key)) return null
+    /** Image slot of a stop: its Place if the name is in the place list, else its rounded coordinates. */
+    private fun slotFor(name: String, lat: Double, lon: Double, places: Map<String, String>): StreetView.Slot =
+        Places.placeName(places, name)?.let { StreetView.placeSlot(it) } ?: StreetView.spotSlot(lat, lon)
+
+    /**
+     * Full-width banner (140 dp, rounded) for a stop: the Place's / spot's stored image, or Street View.
+     * Tap opens Google Maps with a pin; long-press opens the image menu.
+     */
+    private fun streetViewImage(slot: StreetView.Slot, lat: Double, lon: Double): android.view.View? {
+        if (StreetView.isHidden(this, slot)) return null
+        if (StreetView.apiKey(this) == null && !StreetView.hasStored(this, slot)) return null
+        if (StreetView.knownNone(slot)) return null
         val img = android.widget.ImageView(this).apply {
             layoutParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(140)
@@ -294,20 +311,87 @@ class MainActivity : Activity() {
             }
             clipToOutline = true
             contentDescription = "Street View – open in Google Maps"
-            tag = key
+            tag = slot.id
             setOnClickListener {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(StreetView.mapsUrl(lat, lon)))) }
                 catch (e: Exception) { Toast.makeText(this@MainActivity, "No app can open the map", Toast.LENGTH_SHORT).show() }
             }
+            setOnLongClickListener { imageMenu(slot, lat, lon); true }
         }
-        val mem = StreetView.cached(key)
+        val mem = StreetView.cached(slot)
         if (mem != null) { img.setImageBitmap(mem); return img }
-        StreetView.load(this, lat, lon) { bmp ->
-            // The row may have been rebuilt meanwhile: only touch this view if it still shows this spot
-            if (img.tag != key) return@load
+        StreetView.load(this, slot, lat, lon) { bmp ->
+            // The row may have been rebuilt meanwhile: only touch this view if it still shows this slot
+            if (img.tag != slot.id) return@load
             if (bmp != null) img.setImageBitmap(bmp) else img.visibility = android.view.View.GONE
         }
         return img
+    }
+
+    /** Long-press menu for a stop's image (also on the stop row, so a removed image can come back). */
+    private fun imageMenu(slot: StreetView.Slot, lat: Double, lon: Double) {
+        val done: (String?) -> Unit = { err ->
+            if (err != null) Toast.makeText(this, err, Toast.LENGTH_LONG).show()
+            refresh()
+            updatePlaceThumbs()
+        }
+        val isPlace = slot.id.startsWith("p_")
+        AlertDialog.Builder(this)
+            .setTitle(if (isPlace) "Image for ${slot.label}" else "Image for this spot")
+            .setItems(arrayOf("Choose photo…", "Other Street View angle", "Use Street View from this stop", "Remove image")) { _, which ->
+                when (which) {
+                    0 -> {
+                        pickSlot = slot
+                        try {
+                            startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*")
+                                .addCategory(Intent.CATEGORY_OPENABLE), REQ_PICK_IMAGE)
+                        } catch (e: Exception) { Toast.makeText(this, "No app to pick a photo", Toast.LENGTH_SHORT).show() }
+                    }
+                    1 -> StreetView.nextAngle(this, slot, lat, lon, done)
+                    2 -> StreetView.fromStop(this, slot, lat, lon, done)
+                    3 -> StreetView.remove(this, slot, done)
+                }
+            }
+            .show()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION") super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_PICK_IMAGE) return
+        val slot = pickSlot ?: return
+        pickSlot = null
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) return
+        StreetView.fromPhoto(this, slot, uri) { err ->
+            if (err != null) Toast.makeText(this, err, Toast.LENGTH_LONG).show()
+            refresh()
+            updatePlaceThumbs()
+        }
+    }
+
+    /** Small thumbnails of the Places that have a stored image, under the place list in Settings. */
+    private fun updatePlaceThumbs() {
+        val box = findViewById<android.widget.LinearLayout>(R.id.placeThumbs)
+        box.removeAllViews()
+        for (name in Places.names(Places.text(this))) {
+            val bmp = StreetView.thumbnail(this, StreetView.placeSlot(name)) ?: continue
+            box.addView(android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, dp(2), 0, dp(2))
+                addView(android.widget.ImageView(this@MainActivity).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(dp(64), dp(40))
+                    scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                    setImageBitmap(bmp)
+                })
+                addView(TextView(this@MainActivity).apply {
+                    text = name
+                    textSize = 13f
+                    setPadding(dp(8), 0, 0, 0)
+                })
+            })
+        }
     }
 
     private fun placesDirty() = editPlaces.text.toString().trimEnd() != Places.text(this)
@@ -327,6 +411,7 @@ class MainActivity : Activity() {
         Places.save(this, editPlaces.text.toString())
         placesJustSaved = true
         updatePlacesState()
+        updatePlaceThumbs()
         refresh()
     }
 
@@ -580,6 +665,7 @@ class MainActivity : Activity() {
         }
         val first = (all.size - MAX_VISITS).coerceAtLeast(0)
         var lastDay: String? = null
+        val placeMap = Places.parse(Places.text(this))
         for (i in all.indices.reversed()) {
             if (i < first) break
             val v = all[i]
@@ -629,7 +715,11 @@ class MainActivity : Activity() {
                 })
                 val lat = v.lat
                 val lon = v.lon
-                if (lat != null && lon != null) streetViewImage(lat, lon)?.let { addView(it) }
+                if (lat != null && lon != null) {
+                    val slot = slotFor(v.name, lat, lon, placeMap)
+                    streetViewImage(slot, lat, lon)?.let { addView(it) }
+                    setOnLongClickListener { imageMenu(slot, lat, lon); true }
+                }
             })
             // Driving from the previous stop to this one (shown under the arriving stop, in its day)
             if (prev != null) {
