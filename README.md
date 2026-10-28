@@ -226,8 +226,14 @@ adb install -r app-release.apk
 
 - Reverse geocoding needs an internet connection and a geocoder backend on the phone (normally provided
   by Google services). If no address is found, that check is skipped.
-- The service holds a partial wake lock (CPU only) so the timer keeps running in Doze; GPS itself is only
-  used during each check. Short intervals use more battery.
+- Each check is triggered by an AlarmManager alarm (`setExactAndAllowWhileIdle`, RTC_WAKEUP) that wakes
+  the phone in Doze / deep sleep with the screen off; a Handler timer is kept as a backup, and both use
+  the same wall-clock "due" test so a check never runs twice. Exact alarms use `USE_EXACT_ALARM`
+  (granted at install on Android 13+; `SCHEDULE_EXACT_ALARM` on 12); if exact alarms are not allowed
+  the app falls back to `setAndAllowWhileIdle` (Settings shows "Wake-up alarms: exact/inexact"). The
+  alarm is cancelled when logging stops and set again when the service restarts (boot, update). Some
+  phones ignore an app's wake lock (Samsung), which is why a Handler timer alone stalled in deep sleep;
+  a short timed wake lock is still held during each check. GPS itself is only used during each check. Short intervals use more battery.
 - Turning location on/off by writing `LOCATION_MODE` works on most Android versions but is not
   guaranteed on every vendor build; if Android ignores the change the app shows a warning and tries a fix
   anyway.

@@ -570,7 +570,8 @@ class MainActivity : Activity() {
         manualLine(p)?.let { status.text = "${status.text}\n$it" }
         settingsStatus.text = (if (running) "● Running – checking every $interval min" else "○ Stopped – interval $interval min") +
             "\n" + gps + "\n" + perm +
-            (if (isIgnoringBattery()) "\nBattery optimization: off" else "\nBattery optimization: on (may stop logging)")
+            (if (isIgnoringBattery()) "\nBattery optimization: off" else "\nBattery optimization: on (may stop logging)") +
+            (if (CheckAlarm.canExact(this)) "\nWake-up alarms: exact" else "\nWake-up alarms: inexact (exact alarms not allowed; checks may be late with the screen off)")
         lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")
         btnBackground.isEnabled = !hasBackgroundLocation()
         btnBattery.isEnabled = !isIgnoringBattery()

@@ -35,6 +35,16 @@ class LocationService : Service() {
         const val ACTION_START = "no.grokbot.stedslogger.START"
         const val ACTION_STOP = "no.grokbot.stedslogger.STOP"
         const val ACTION_CHECK_NOW = "no.grokbot.stedslogger.CHECK_NOW"
+        const val ACTION_ALARM = "no.grokbot.stedslogger.ALARM"
+        /** Wall-clock time (ms) of the last periodic tick, kept across service restarts. */
+        const val KEY_LAST_TICK_AT = "last_tick_at"
+        /** A tick earlier than this before it is due is skipped (alarm and Handler may both fire). */
+        private const val TICK_SLACK_MS = 30 * 1000L
+        private const val CHECK_WAKE_MS = 90 * 1000L
+
+        /** The running service (main thread only), so the alarm receiver can trigger a check in it. */
+        @Volatile var instance: LocationService? = null
+            private set
         private const val CHANNEL_ID = "stedslogger"
         private const val NOTIF_ID = 1
         private const val GPS_ON_WAIT_MS = 6 * 1000L
@@ -65,12 +75,38 @@ class LocationService : Service() {
 
     private fun intervalMs() = LogStore.intervalMin(this) * 60 * 1000L
 
-    private val tick = object : Runnable {
-        override fun run() {
-            lastTickAt = System.currentTimeMillis()
-            checkLocation()
-            handler.postDelayed(this, intervalMs())
+    /**
+     * Periodic tick. Driven mainly by [CheckAlarm] (wakes the phone in Doze); the Handler is a
+     * secondary path. Both go through the same wall-clock "due" test, so a check never runs twice.
+     */
+    private val tick = Runnable { onTick() }
+
+    private fun onTick() {
+        if (!running) return
+        val now = System.currentTimeMillis()
+        if (lastTickAt > 0 && now - lastTickAt < intervalMs() - TICK_SLACK_MS && now >= lastTickAt) {
+            scheduleNext() // not due yet (the other path already ran this tick)
+            return
         }
+        lastTickAt = now
+        LogStore.prefs(this).edit().putLong(KEY_LAST_TICK_AT, now).apply()
+        checkLocation()
+        scheduleNext()
+    }
+
+    /** Called by [CheckAlarmReceiver] on the main thread. */
+    fun onAlarm() {
+        holdCheckWake() // keep the CPU up while the tick starts (released when the check ends)
+        handler.post { onTick(); if (!busy) releaseCheckWake() }
+    }
+
+    /** Next tick at lastTickAt + interval: an alarm (wakes the phone) plus a Handler backup. */
+    private fun scheduleNext() {
+        if (!running) return
+        val at = lastTickAt + intervalMs()
+        CheckAlarm.schedule(this, at)
+        handler.removeCallbacks(tick)
+        handler.postDelayed(tick, (at - System.currentTimeMillis()).coerceAtLeast(0L))
     }
 
     /** Reschedule the next tick relative to the last one, using the current interval. */
@@ -78,7 +114,7 @@ class LocationService : Service() {
         if (!running) return
         handler.removeCallbacks(tick)
         val due = lastTickAt + intervalMs() - System.currentTimeMillis()
-        if (due <= 0) handler.post(tick) else handler.postDelayed(tick, due)
+        if (due <= 0) handler.post(tick) else scheduleNext()
         updateNotification(statusText())
     }
 
@@ -122,30 +158,45 @@ class LocationService : Service() {
         LogStore.prefs(this).edit().putBoolean(LogStore.KEY_RUNNING, true).apply()
         if (!running) {
             running = true
+            instance = this
             executor.execute { try { LogStore.deleteOldTextLogsOnce(this) } catch (e: Exception) { Log.w(TAG, "text log cleanup failed", e) } }
             acquireWakeLock()
             LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
+            // Continue the earlier schedule if the service was restarted (boot, update, killed)
+            lastTickAt = LogStore.prefs(this).getLong(KEY_LAST_TICK_AT, 0L)
+                .takeIf { it <= System.currentTimeMillis() } ?: 0L
+            if (intent?.action == ACTION_CHECK_NOW) lastTickAt = 0L
             handler.post(tick)
         } else if (intent?.action == ACTION_CHECK_NOW) {
+            holdCheckWake()
             checkLocation()
+        } else if (intent?.action == ACTION_ALARM) {
+            onAlarm()
         }
         return START_STICKY
     }
 
     private fun stopEverything() {
-        LogStore.prefs(this).edit().putBoolean(LogStore.KEY_RUNNING, false).apply()
+        // A fresh start checks right away (a restart after boot/kill continues the schedule)
+        LogStore.prefs(this).edit().putBoolean(LogStore.KEY_RUNNING, false).remove(KEY_LAST_TICK_AT).apply()
         running = false
+        instance = null
+        CheckAlarm.cancel(this)
         handler.removeCallbacksAndMessages(null)
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         cancelPending()
         gpsOffAfterFix()
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+        releaseCheckWake()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
+        if (instance === this) instance = null
+        // The alarm is kept if logging is still on: it restarts the service if Android killed it
+        releaseCheckWake()
         handler.removeCallbacksAndMessages(null)
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         cancelPending()
@@ -162,6 +213,23 @@ class LocationService : Service() {
             setReferenceCounted(false)
             acquire()
         }
+    }
+
+    // Short wake lock with a timeout for one check (fix + geocoding); harmless if the phone ignores it.
+    private var checkWake: PowerManager.WakeLock? = null
+
+    private fun holdCheckWake() {
+        try {
+            val wl = checkWake ?: (getSystemService(POWER_SERVICE) as PowerManager)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LocationLogger::check")
+                .apply { setReferenceCounted(false) }
+            checkWake = wl
+            wl.acquire(CHECK_WAKE_MS)
+        } catch (e: Exception) { Log.w(TAG, "check wake lock failed", e) }
+    }
+
+    private fun releaseCheckWake() {
+        try { checkWake?.let { if (it.isHeld) it.release() } } catch (_: Exception) {}
     }
 
     private fun hasLocationPermission(): Boolean =
@@ -244,6 +312,7 @@ class LocationService : Service() {
         gpsOffAfterFix()
         busy = false
         setLastCheck(msg)
+        releaseCheckWake()
     }
 
     private fun availableProviders(lm: LocationManager) = buildList {
@@ -256,6 +325,7 @@ class LocationService : Service() {
     private fun checkLocation() {
         if (busy || !hasLocationPermission()) return
         busy = true
+        holdCheckWake()
         toggleNote = null
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
         if (LogStore.gpsOffBetween(this)) {
@@ -291,7 +361,7 @@ class LocationService : Service() {
     }
 
     private fun startFix(lm: LocationManager) {
-        if (!running) { busy = false; gpsOffAfterFix(); return }
+        if (!running) { busy = false; gpsOffAfterFix(); releaseCheckWake(); return }
         val providers = availableProviders(lm)
         if (providers.isEmpty()) {
             endCheck(toggleNote ?: "Location (GPS) is turned off")
@@ -354,6 +424,7 @@ class LocationService : Service() {
         if (!Geocoder.isPresent()) {
             setLastCheck("Geocoding is not available on this phone")
             busy = false
+            releaseCheckWake()
             return
         }
         val geocoder = Geocoder(this, Locale.getDefault())
@@ -407,6 +478,7 @@ class LocationService : Service() {
      */
     private fun onAddress(a: Address?, loc: Location) {
         busy = false
+        releaseCheckWake()
         val raw = a?.let { formatAddress(it) }
         if (raw == null) {
             try { VisitStore.onFixOnly(this, loc) } catch (e: Exception) { Log.w(TAG, "trip update failed", e) }
