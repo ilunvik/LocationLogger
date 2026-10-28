@@ -130,7 +130,7 @@ adb shell pm grant no.grokbot.stedslogger android.permission.WRITE_SECURE_SETTIN
 ```
 
 It normally survives app updates, but is lost on uninstall (and some devices drop it on a
-reinstall). If the main screen shows **"Missing permission to control GPS
+reinstall). If the Settings tab shows **"Missing permission to control GPS
 (grant WRITE_SECURE_SETTINGS via adb)"**, just run the command above again. Check that it took with:
 
 ```sh
