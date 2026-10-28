@@ -95,8 +95,8 @@ class LocationService : Service() {
             !GpsToggle.hasPermission(this) -> "Missing permission to control GPS"
             else -> "GPS turned on when needed and restored"
         }
-        val last = LogStore.prefs(this).getString(LogStore.KEY_LAST_ADDRESS, null)
-        return "Checking every ${LogStore.intervalMin(this)} min · $gps" + (last?.let { "\nLast: $it" } ?: "")
+        val last = VisitStore.current(this)?.name
+        return "Checking every ${LogStore.intervalMin(this)} min · $gps" + (last?.let { "\nAt: $it" } ?: "")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -359,14 +359,14 @@ class LocationService : Service() {
             try {
                 geocoder.getFromLocation(loc.latitude, loc.longitude, 1, object : Geocoder.GeocodeListener {
                     override fun onGeocode(addresses: MutableList<Address>) {
-                        handler.post { onAddress(addresses.firstOrNull()) }
+                        handler.post { onAddress(addresses.firstOrNull(), loc) }
                     }
                     override fun onError(errorMessage: String?) {
-                        handler.post { onAddress(null) }
+                        handler.post { onAddress(null, loc) }
                     }
                 })
             } catch (e: Exception) {
-                onAddress(null)
+                onAddress(null, loc)
             }
         } else {
             executor.execute {
@@ -374,7 +374,7 @@ class LocationService : Service() {
                     @Suppress("DEPRECATION")
                     geocoder.getFromLocation(loc.latitude, loc.longitude, 1)?.firstOrNull()
                 } catch (e: Exception) { null }
-                handler.post { onAddress(a) }
+                handler.post { onAddress(a, loc) }
             }
         }
     }
@@ -392,46 +392,44 @@ class LocationService : Service() {
     }
 
     /**
-     * Logging rule (since 1.6):
-     * 1. The geocoded address is first "corrected" with the place list ([Places]), so several
-     *    addresses for the same spot become one name.
-     * 2. A corrected place is only logged once it has been seen on two consecutive successful
-     *    readings (the first one is kept as a pending candidate). Readings with no fix or no
-     *    address are skipped and neither confirm nor reset the candidate.
-     * 3. While you stay at the last logged place, nothing more is logged.
+     * Visit rule (since 1.7; see [VisitStore.onCheck]):
+     * 1. The geocoded address is "corrected" with the place list ([Places]).
+     * 2. A new place becomes a visit only when seen on two consecutive successful checks;
+     *    its arrival is the first of those two checks.
+     * 3. While you stay, each check moves the visit's departure forward.
+     * 4. Travelled distance = sum of the legs between consecutive accurate fixes (<= 100 m) from
+     *    the last fix at the previous stop to the first sighting of the new one, including
+     *    unconfirmed candidates and fixes without an address.
+     * Checks with no fix or no address are skipped. Visits are stored in the app
+     * (visits.json); location.txt is no longer written.
      */
-    private fun onAddress(a: Address?) {
+    private fun onAddress(a: Address?, loc: Location) {
         busy = false
         val raw = a?.let { formatAddress(it) }
         if (raw == null) {
+            try { VisitStore.onFixOnly(this, loc) } catch (e: Exception) { Log.w(TAG, "trip update failed", e) }
             setLastCheck("No address found (requires internet) – retrying in ${LogStore.intervalMin(this)} min")
             return
         }
         val p = LogStore.prefs(this)
-        val places = Places.parse(Places.text(this))
-        val place = Places.resolve(places, raw)
+        val place = Places.resolve(this, raw)
         val shown = if (place == raw) raw else "$place ($raw)"
         p.edit().putString(LogStore.KEY_LAST_RAW_ADDRESS, raw).apply()
-
-        val last = p.getString(LogStore.KEY_LAST_ADDRESS, null)
-        if (Places.same(places, place, last)) {
-            p.edit().remove(LogStore.KEY_PENDING_ADDRESS).apply()
-            setLastCheck("Same place ($shown)")
+        val outcome = try {
+            VisitStore.onCheck(this, place, System.currentTimeMillis(), loc)
+        } catch (e: Exception) {
+            Log.e(TAG, "could not save visit", e)
+            setLastCheck("Could not save the visit: ${e.message}")
             return
         }
-        val pending = p.getString(LogStore.KEY_PENDING_ADDRESS, null)
-        if (!Places.same(places, place, pending)) {
-            p.edit().putString(LogStore.KEY_PENDING_ADDRESS, place).apply()
-            setLastCheck("New place seen once: $shown – logged if it is the same at the next check")
-            return
-        }
-        val line = "${now("yyyy-MM-dd HH:mm")} | $place"
-        if (LogStore.append(this, line)) {
-            p.edit().putString(LogStore.KEY_LAST_ADDRESS, place).remove(LogStore.KEY_PENDING_ADDRESS).apply()
-            setLastCheck("New place saved: $shown")
-            updateNotification(statusText())
-        } else {
-            setLastCheck("Could not write to ${LogStore.FILE_NAME}")
+        when (outcome) {
+            VisitStore.Outcome.SAME_PLACE -> setLastCheck("Still at $shown")
+            VisitStore.Outcome.CANDIDATE ->
+                setLastCheck("New place seen once: $shown – becomes a visit if it is the same at the next check")
+            VisitStore.Outcome.NEW_VISIT -> {
+                setLastCheck("Arrived at $shown")
+                updateNotification(statusText())
+            }
         }
     }
 }

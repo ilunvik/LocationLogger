@@ -1,15 +1,21 @@
 # LocationLogger
 
-A small Android app that logs the **street address** you are at. At a configurable interval
-(default every 5 minutes) it gets the phone's location, reverse-geocodes it to an address and,
-**only when you have arrived at a new place** (see [Logging rule](#logging-rule)), appends a line to `location.txt`:
+A small Android app that records the **places you visit**. At a configurable interval
+(default every 5 minutes) it gets the phone's location and reverse-geocodes it to an address
+(optionally merged into a place name, see [Places](#places)). From that it builds a list of
+**visits** shown on the main screen, newest first:
 
 ```
-2026-10-26 03:49 | Storgata 1, 0155 Oslo
+Today · Wed 28 Oct 2026
+● Home
+  arrived 17:40 – now
+  1 h 5 min so far · travelled 12.3 km from previous stop
+  Storgata 1, 0155 Oslo
+  arrived 15:10 – left 17:20
+  2 h 10 min · travelled 850 m from previous stop
 ```
 
-The timestamp uses the phone's local time, and the address is looked up in the phone's language.
-The address is "street + house number, postcode + city",
+The address is looked up in the phone's language: "street + house number, postcode + city",
 falling back to the geocoder's full address line when there is no street name.
 
 - Runs as a **foreground service** (`foregroundServiceType="location"`) with a persistent notification,
@@ -19,14 +25,13 @@ falling back to the geocoder's full address line when there is no street name.
   (async Geocoder API on Android 13+).
 - Kotlin, framework APIs only (no AndroidX). minSdk 26 (Android 8.0), targetSdk 34.
 
-## Where the log is saved
+## Where the data is saved
 
-| Android version | Location |
-|---|---|
-| 10 and newer | `Internal storage/Documents/location.txt` (via MediaStore, visible in any file manager) |
-| 8 – 9, or if MediaStore fails | `Android/data/no.grokbot.stedslogger/files/location.txt` |
-
-The latest entries (newest first) are also shown on the main screen.
+Visits are stored privately in the app (`files/visits.json` in the app's data directory; not visible
+in a file manager, removed on uninstall). Older versions (≤ 1.6) wrote a text log,
+`Documents/location.txt` (Android 10+) or `Android/data/no.grokbot.stedslogger/files/location.txt`.
+Since 1.7 that file is **no longer written, but never deleted**. On the first start of 1.7 its lines
+are imported once as visits (arrival time only; no departure, coordinates or distance).
 
 ## Settings (main screen)
 
@@ -62,22 +67,38 @@ Home;Example Street 1, 0000 Town;Other Road 2, 0000 Town
 When a looked-up address matches any address on a line (case, surrounding spaces and repeated
 spaces are ignored), the **name** (the first part) is logged instead. Empty lines and lines starting
 with `#` are ignored. The dialog shows the last address the phone returned, and *Insert last address*
-pastes it at the cursor. The list is stored on the device only (app preferences), never in the log
-file or this repository.
+pastes it at the cursor. The list is stored on the device only (app preferences), never in this
+repository.
 
-## Logging rule
+## Visits
 
 For each successful check the address is first corrected with the place list, then:
 
-1. If it is the same place as the last logged entry, nothing is logged.
-2. If it is a new place, it is remembered as a candidate but **not** logged yet.
-3. If the next successful check gives the same candidate, it is logged (with the time of that
-   second check).
+1. Same place as the current visit: the visit's **departure** moves to this check.
+2. A new place: remembered as a candidate (first sighting), not a visit yet.
+3. The next successful check gives the same candidate: a new visit starts. Its **arrival** is the
+   candidate's first sighting; the previous visit keeps as departure its last check at that place.
 
-So a place must be seen on two checks in a row before it is logged, and it is logged only once
-while you stay there. Checks without a location fix or without an address are skipped: they neither
-confirm nor reset the candidate. *Check now* counts as a check. Existing entries in `location.txt`
-are left unchanged.
+So a place must be seen on two checks in a row to become a visit (a single check elsewhere, e.g.
+A → B → A, does not split the stay at A). Checks without a location fix or address are skipped for
+this. The current visit shows "now" and its running duration; when logging is stopped it shows
+"last seen". Imported text-log visits show "left ?" and "up to …" (time until the next entry).
+Each visit's coordinates are the average of its first and confirming fix.
+
+### Travelled distance
+
+The distance shown for a visit is the **travelled distance** from leaving the previous stop to
+arriving at this one: the sum of the straight legs between consecutive fixes, from the last fix
+at the previous stop, through every check while moving (unconfirmed candidates and fixes without an
+address included), to the first sighting of the new stop.
+
+- Fixes with an accuracy worse than 100 m are ignored.
+- Fixes at a stop never add distance: each check still at the current stop restarts the count
+  (so GPS jitter, and a short detour that returns to the same stop, are not counted), and the
+  confirming fix at the new stop is not counted.
+- It is an approximation: it only knows where the phone was at each check, so with 5-minute checks
+  winding roads are cut short (and a trip shorter than one interval is roughly a straight line).
+  A shorter interval gives a closer result at the cost of more GPS use and battery.
 
 ## Permissions
 
@@ -164,7 +185,8 @@ src/                      Gradle project
       MainActivity.kt      UI, permissions, settings
       LocationService.kt   foreground service, checks, GPS toggling, logging
       GpsToggle.kt         system location on/off via Settings.Secure
-      LogStore.kt          location.txt (MediaStore / fallback) and preferences
+      LogStore.kt          old location.txt (read for import) and preferences
+      VisitStore.kt        visits (visits.json), arrival/departure, travelled distance
       Places.kt            place list: merges several addresses into one name
       BootReceiver.kt      restart after reboot / update
     src/main/res/          layout, icons, strings

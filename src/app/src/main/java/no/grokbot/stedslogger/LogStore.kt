@@ -16,8 +16,7 @@ object LogStore {
     const val FILE_NAME = "location.txt"
     const val PREFS = "stedslogger"
     const val KEY_RUNNING = "running"
-    const val KEY_LAST_ADDRESS = "last_address"          // last logged place (after the place list)
-    const val KEY_PENDING_ADDRESS = "pending_address"    // seen once, waiting for a second reading
+    const val KEY_LAST_ADDRESS = "last_address"          // place of the latest visit (after the place list)
     const val KEY_LAST_RAW_ADDRESS = "last_raw_address"  // last address exactly as the geocoder gave it
     const val KEY_LAST_CHECK = "last_check"
     const val KEY_FILE_URI = "file_uri"
@@ -116,7 +115,7 @@ object LogStore {
         } catch (e: Exception) { Log.e(TAG, "fallback write failed", e); false }
     }
 
-    private fun bump(ctx: Context) {
+    fun bump(ctx: Context) {
         val p = prefs(ctx)
         p.edit().putLong(KEY_LOG_VERSION, p.getLong(KEY_LOG_VERSION, 0) + 1).apply()
     }

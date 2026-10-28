@@ -127,19 +127,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="Latest entries (newest first):"
+        android:text="Visits (newest first):"
         android:textStyle="bold" />
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
-        <TextView
-            android:id="@+id/log"
+        <LinearLayout
+            android:id="@+id/visits"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textIsSelectable="true"
-            android:textSize="13sp" />
+            android:orientation="vertical" />
     </ScrollView>
 </LinearLayout>

@@ -19,19 +19,26 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : Activity() {
 
     companion object {
         private const val REQ_FOREGROUND = 1
         private const val REQ_BACKGROUND = 2
-        private const val MAX_LINES = 200
+        private const val MAX_VISITS = 300
     }
 
     private lateinit var status: TextView
     private lateinit var lastCheck: TextView
     private lateinit var filePath: TextView
-    private lateinit var log: TextView
+    private lateinit var visits: android.widget.LinearLayout
+    private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val minuteTick = object : Runnable {
+        override fun run() { refresh(); uiHandler.postDelayed(this, 60_000L) }
+    }
     private lateinit var btnBackground: Button
     private lateinit var btnBattery: Button
     private lateinit var btnPlaces: Button
@@ -48,7 +55,7 @@ class MainActivity : Activity() {
         status = findViewById(R.id.status)
         lastCheck = findViewById(R.id.lastCheck)
         filePath = findViewById(R.id.filePath)
-        log = findViewById(R.id.log)
+        visits = findViewById(R.id.visits)
         btnBackground = findViewById(R.id.btnBackground)
         btnBattery = findViewById(R.id.btnBattery)
 
@@ -87,11 +94,13 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
-        refresh()
+        uiHandler.removeCallbacks(minuteTick)
+        uiHandler.post(minuteTick) // refreshes now and every minute (running duration)
     }
 
     override fun onPause() {
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
+        uiHandler.removeCallbacks(minuteTick)
         super.onPause()
     }
 
@@ -313,13 +322,124 @@ class MainActivity : Activity() {
         btnBattery.isEnabled = !isIgnoringBattery()
         val nPlaces = Places.count(Places.text(this))
         btnPlaces.text = if (nPlaces == 0) "Places (merge addresses) …" else "Places (merge addresses): $nPlaces …"
-        filePath.text = "File: " + LogStore.describeLocation(this)
+        filePath.text = "Visits are stored in the app. Old text log (no longer written): " +
+            LogStore.describeLocation(this)
         Thread {
-            val text = LogStore.readAll(this)
-            val lines = text.lines().filter { it.isNotBlank() }.takeLast(MAX_LINES).reversed()
-            runOnUiThread {
-                log.text = if (lines.isEmpty()) "(no entries yet)" else lines.joinToString("\n")
-            }
+            VisitStore.importTextLogOnce(this)
+            val all = VisitStore.all(this)
+            val cand = VisitStore.candidate(this)
+            runOnUiThread { showVisits(all, cand, running) }
         }.start()
+    }
+
+    // ---------- visits ----------
+
+    private val timeFmt = SimpleDateFormat("HH:mm", Locale.ENGLISH)
+    private val dayFmt = SimpleDateFormat("EEE d MMM yyyy", Locale.ENGLISH)
+    private val dayKeyFmt = SimpleDateFormat("yyyyMMdd", Locale.ENGLISH)
+
+    private fun dayLabel(t: Long): String {
+        val now = System.currentTimeMillis()
+        return when (dayKeyFmt.format(Date(t))) {
+            dayKeyFmt.format(Date(now)) -> "Today · " + dayFmt.format(Date(t))
+            dayKeyFmt.format(Date(now - 86_400_000L)) -> "Yesterday · " + dayFmt.format(Date(t))
+            else -> dayFmt.format(Date(t))
+        }
+    }
+
+    private fun sameDay(a: Long, b: Long) = dayKeyFmt.format(Date(a)) == dayKeyFmt.format(Date(b))
+
+    private fun formatDuration(ms: Long): String {
+        val totalMin = ms / 60_000L
+        if (totalMin < 1) return "< 1 min"
+        val d = totalMin / 1440
+        val h = (totalMin % 1440) / 60
+        val m = totalMin % 60
+        return listOfNotNull(
+            if (d > 0) "$d d" else null,
+            if (h > 0) "$h h" else null,
+            if (m > 0 || (d == 0L && h == 0L)) "$m min" else null,
+        ).joinToString(" ")
+    }
+
+    private fun formatDistance(m: Float): String =
+        if (m < 1000f) "${Math.round(m)} m" else String.format(Locale.ENGLISH, "%.1f km", m / 1000f)
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    private fun showVisits(all: List<Visit>, cand: Pair<String, Long>?, running: Boolean) {
+        visits.removeAllViews()
+        val now = System.currentTimeMillis()
+        if (cand != null && running) {
+            visits.addView(TextView(this).apply {
+                text = "Seen once: ${cand.first} at ${timeFmt.format(Date(cand.second))} – becomes a visit if confirmed at the next check"
+                textSize = 12f
+                setTextColor(0xFF757575.toInt())
+                setPadding(0, dp(4), 0, dp(4))
+            })
+        }
+        if (all.isEmpty()) {
+            visits.addView(TextView(this).apply { text = "(no visits yet)"; setPadding(0, dp(8), 0, 0) })
+            return
+        }
+        val first = (all.size - MAX_VISITS).coerceAtLeast(0)
+        var lastDay: String? = null
+        for (i in all.indices.reversed()) {
+            if (i < first) break
+            val v = all[i]
+            val prev = if (i > 0) all[i - 1] else null
+            val next = if (i + 1 < all.size) all[i + 1] else null
+            val isCurrent = next == null
+
+            val day = dayKeyFmt.format(Date(v.arrival))
+            if (day != lastDay) {
+                lastDay = day
+                visits.addView(TextView(this).apply {
+                    text = dayLabel(v.arrival)
+                    textSize = 13f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(0xFF1565C0.toInt())
+                    setPadding(0, dp(12), 0, dp(2))
+                })
+            }
+
+            val arrived = "arrived " + timeFmt.format(Date(v.arrival))
+            val dep = v.departure
+            fun at(t: Long) = if (sameDay(v.arrival, t)) timeFmt.format(Date(t)) else
+                SimpleDateFormat("EEE d MMM HH:mm", Locale.ENGLISH).format(Date(t))
+            val (times, duration) = when {
+                isCurrent && running -> "$arrived – now" to "${formatDuration(now - v.arrival)} so far"
+                dep != null && isCurrent -> "$arrived – last seen ${at(dep)} (logging stopped)" to formatDuration(dep - v.arrival)
+                dep != null -> "$arrived – left ${at(dep)}" to formatDuration(dep - v.arrival)
+                next != null -> "$arrived – left ?" to "up to ${formatDuration(next.arrival - v.arrival)} (from old log)"
+                else -> "$arrived – left ?" to null
+            }
+            val details = listOfNotNull(
+                duration,
+                v.travelledM?.takeIf { prev != null }?.let { "travelled ${formatDistance(it.toFloat())} from previous stop" },
+            ).joinToString(" · ")
+
+            visits.addView(android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(dp(8), dp(6), 0, dp(6))
+                addView(TextView(this@MainActivity).apply {
+                    text = (if (isCurrent && running) "● " else "") + v.name
+                    textSize = 16f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextIsSelectable(true)
+                })
+                addView(TextView(this@MainActivity).apply { text = times; textSize = 14f })
+                if (details.isNotEmpty()) addView(TextView(this@MainActivity).apply {
+                    text = details
+                    textSize = 13f
+                    setTextColor(0xFF616161.toInt())
+                })
+            })
+        }
+        if (first > 0) visits.addView(TextView(this).apply {
+            text = "($first older visits not shown)"
+            textSize = 12f
+            setPadding(0, dp(8), 0, 0)
+        })
     }
 }
