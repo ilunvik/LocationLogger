@@ -82,8 +82,13 @@ Name;address 1;address 2;...
 Home;Example Street 1, 0000 Town;Other Road 2, 0000 Town
 ```
 
-When a looked-up address matches any address on a line (case, surrounding spaces and repeated
-spaces are ignored), the **name** (the first part) is logged instead. Empty lines and lines starting
+When a looked-up address matches any address on a line, the **name** (the first part) is shown
+instead. Matching ignores case, punctuation, extra or no-break spaces and invisible characters; an
+address also matches the same street (the part before the first comma) when the postcode/town is
+missing on one side or the postcodes agree. The reversed order `address;Name` is accepted when the
+first part looks like an address (has a digit) and the last does not. The list is applied when the
+visits are **shown**, so stops logged before a place was added or renamed show the new name as soon
+as the list is saved. Empty lines and lines starting
 with `#` are ignored. The section shows the last address the phone returned (selectable), *Insert last address*
 pastes it at the cursor, and *Save* stores the list ("Saved (N places)" / "Not saved" is shown next
 to it). Leaving the Settings tab with unsaved changes asks whether to save or discard them. The list is stored on the device only (app preferences), never in this

@@ -94,7 +94,7 @@ object StreetView {
     class Slot(val id: String, val label: String)
 
     fun placeSlot(name: String): Slot {
-        val h = MessageDigest.getInstance("SHA-1").digest(Places.norm(name).toByteArray(Charsets.UTF_8))
+        val h = MessageDigest.getInstance("SHA-1").digest(Places.imageKey(name).toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }.take(20)
         return Slot("p_$h", name)
     }

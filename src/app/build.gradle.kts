@@ -9,8 +9,8 @@ android {
         applicationId = "no.grokbot.stedslogger"
         minSdk = 26
         targetSdk = 34
-        versionCode = 17
-        versionName = "1.16"
+        versionCode = 18
+        versionName = "1.17"
     }
     buildTypes {
         release {
@@ -24,4 +24,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     lint { abortOnError = false }
+}
+dependencies {
+    testImplementation("junit:junit:4.13.2")
 }

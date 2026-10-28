@@ -646,6 +646,7 @@ class MainActivity : Activity() {
     private fun showVisits(all: List<Visit>, cand: Pair<String, Long>?, running: Boolean, trip: Double?) {
         visits.removeAllViews()
         val now = System.currentTimeMillis()
+        val placeMap = Places.parse(Places.text(this))
         // Ongoing trip: the current stop has been left (a new place was seen once) but not confirmed yet
         val cur = all.lastOrNull()
         if (cand != null && running && cur != null) {
@@ -653,7 +654,7 @@ class MainActivity : Activity() {
         }
         if (cand != null && running) {
             visits.addView(TextView(this).apply {
-                text = "Seen once: ${cand.first} at ${timeFmt.format(Date(cand.second))} – becomes a visit if confirmed at the next check"
+                text = "Seen once: ${Places.label(placeMap, cand.first)} at ${timeFmt.format(Date(cand.second))} – becomes a visit if confirmed at the next check"
                 textSize = 12f
                 setTextColor(0xFF757575.toInt())
                 setPadding(0, dp(4), 0, dp(4))
@@ -665,13 +666,14 @@ class MainActivity : Activity() {
         }
         val first = (all.size - MAX_VISITS).coerceAtLeast(0)
         var lastDay: String? = null
-        val placeMap = Places.parse(Places.text(this))
         for (i in all.indices.reversed()) {
             if (i < first) break
             val v = all[i]
             val prev = if (i > 0) all[i - 1] else null
             val next = if (i + 1 < all.size) all[i + 1] else null
             val isCurrent = next == null
+            // Re-labelled with the current place list (stops logged before a Place was added show its name)
+            val label = Places.label(placeMap, v.name)
 
             val day = dayKeyFmt.format(Date(v.arrival))
             if (day != lastDay) {
@@ -711,7 +713,7 @@ class MainActivity : Activity() {
                 }
                 addView(textCol)
                 textCol.addView(TextView(this@MainActivity).apply {
-                    text = (if (isCurrent && running) "● " else "") + v.name
+                    text = (if (isCurrent && running) "● " else "") + label
                     textSize = 16f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                     setTextIsSelectable(true)
@@ -725,7 +727,7 @@ class MainActivity : Activity() {
                 val lat = v.lat
                 val lon = v.lon
                 if (lat != null && lon != null) {
-                    val slot = slotFor(v.name, lat, lon, placeMap)
+                    val slot = slotFor(label, lat, lon, placeMap)
                     streetViewImage(slot, lat, lon)?.let { row.addView(it) }
                     row.setOnLongClickListener { imageMenu(slot, lat, lon); true }
                 }
