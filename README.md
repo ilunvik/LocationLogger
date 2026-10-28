@@ -104,7 +104,8 @@ so the current `adb connect` port is always known. On each check and on network 
 
 ```
 {"ip": "100.x.y.z", "tailscaleIp": "100.x.y.z", "lanIp": "192.168.x.y", "port": 40000,
- "adbWifi": "on", "ts": 1700000000000, "device": "<device name>"}
+ "adbWifi": "on", "ts": 1700000000000, "device": "<device name>",
+ "deviceId": "<random UUID made by the app>", "model": "<Build.MODEL>"}
 ```
 
 (plus `"tcp5555": true/false` – whether adbd listens on TCP 5555, i.e. `adb tcpip 5555` mode, read from

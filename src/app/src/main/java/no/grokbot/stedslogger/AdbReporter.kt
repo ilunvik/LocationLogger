@@ -35,6 +35,7 @@ object AdbReporter {
     const val KEY_KEEP_WIFI = "keep_adb_wifi_on"
     private const val KEY_TCP = "adb_tcp5555_last"
     const val KEY_KEEP_STATUS = "keep_adb_wifi_status"
+    private const val KEY_DEVICE_ID = "adb_report_device_id"
     private const val SERVICE_TYPE = "_adb-tls-connect._tcp"
     private const val DISCOVERY_MS = 6_000L
     private const val HEARTBEAT_MS = 60 * 60 * 1000L
@@ -63,6 +64,15 @@ object AdbReporter {
     private fun deviceName(ctx: Context): String =
         (try { Settings.Global.getString(ctx.contentResolver, "device_name") } catch (_: Exception) { null })
             ?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL ?: "phone"
+
+    /** Random, app-generated id (stored in prefs) so the dashboard can keep several phones apart. */
+    fun deviceId(ctx: Context): String {
+        val p = LogStore.prefs(ctx)
+        p.getString(KEY_DEVICE_ID, null)?.let { return it }
+        val id = java.util.UUID.randomUUID().toString()
+        p.edit().putString(KEY_DEVICE_ID, id).apply()
+        return id
+    }
 
     private fun isCgnat(b: List<Int>) = b[0] == 100 && b[1] in 64..127
 
@@ -200,6 +210,8 @@ object AdbReporter {
             put("ip", ip ?: JSONObject.NULL); put("tailscaleIp", ts ?: JSONObject.NULL); put("lanIp", lan ?: JSONObject.NULL)
             put("port", port ?: JSONObject.NULL); put("adbWifi", wifi); put("ts", System.currentTimeMillis())
             put("device", deviceName(ctx))
+            put("deviceId", deviceId(ctx))
+            put("model", android.os.Build.MODEL ?: JSONObject.NULL)
             put("tcp5555", tcp)
         }.toString()
         run {
