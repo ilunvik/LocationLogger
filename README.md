@@ -89,6 +89,32 @@ pastes it at the cursor, and *Save* stores the list ("Saved (N places)" / "Not s
 to it). Leaving the Settings tab with unsaved changes asks whether to save or discard them. The list is stored on the device only (app preferences), never in this
 repository.
 
+## Street View
+
+Optionally, each stop with coordinates shows a Street View image (full width, 140 dp) on its row.
+Tapping the image opens the spot in Google Maps as a normal map with a pin
+(`https://www.google.com/maps/search/?api=1&query=lat,lon`; the Maps app if installed, otherwise
+the browser). Imported stops without coordinates get no image.
+
+This needs your own Google API key, entered in the **Street View** section of the Settings tab
+(stored only on the device, in the app's preferences; never logged). Without a key the app shows no
+images and makes no network calls for them. To create a key:
+
+1. Google Cloud Console → create a project (billing must be enabled).
+2. Enable **Street View Static API**.
+3. Credentials → **Create API key**.
+4. Restrict it to **Android apps**: package `no.grokbot.stedslogger` and the SHA-1 of the
+   certificate your APK is signed with (the Settings tab shows it).
+5. Restrict the API to **Street View Static API**.
+
+For each stop the app first asks the free metadata endpoint whether there is an outdoor panorama
+within 50 m; only if the status is `OK` is the 640×320 image downloaded. Requests carry the
+`X-Android-Package` and `X-Android-Cert` headers so an Android-restricted key works.
+Results are cached in the app's private files (`files/streetview/`) by coordinates rounded to
+5 decimals: the image, or a marker when Google has no panorama there, so each spot is fetched only
+once. Other errors (invalid key, quota, network) are not cached on disk and are retried after the
+app restarts or the key is saved again.
+
 ## Visits
 
 For each successful check the address is first corrected with the place list, then:
@@ -207,6 +233,7 @@ src/                      Gradle project
       LogStore.kt          preferences
       VisitStore.kt        visits (visits.json), arrival/departure, travelled distance
       Places.kt            place list: merges several addresses into one name
+      StreetView.kt        Street View images for stops (API key, download, cache)
       BootReceiver.kt      restart after reboot / update
     src/main/res/          layout, icons, strings
 ```

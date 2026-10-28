@@ -96,6 +96,7 @@ class MainActivity : Activity() {
         btnBackground.setOnClickListener { askBackgroundLocation() }
         btnBattery.setOnClickListener { askIgnoreBatteryOptimizations() }
         setupPlaces(savedInstanceState != null)
+        setupStreetView()
 
         chkGpsOff = findViewById(R.id.chkGpsOff)
         chkGpsOff.isChecked = LogStore.gpsOffBetween(this)
@@ -240,6 +241,73 @@ class MainActivity : Activity() {
             editPlaces.requestFocus()
         }
         updatePlacesState()
+    }
+
+    private fun setupStreetView() {
+        val sha1 = StreetView.certSha1Display(this) ?: "(could not read)"
+        findViewById<TextView>(R.id.streetViewHelp).text =
+            "Shows a Street View image on each stop with coordinates; tap it to open the spot in Google Maps. " +
+            "Needs your own Google API key (stored only on this phone):\n" +
+            "1. Google Cloud Console → create a project (billing required)\n" +
+            "2. Enable \"Street View Static API\"\n" +
+            "3. Credentials → Create API key\n" +
+            "4. Restrict it to Android apps: package $packageName, SHA-1 $sha1\n" +
+            "5. Restrict the API to Street View Static API"
+        val edit = findViewById<EditText>(R.id.editApiKey)
+        val keyStatus = findViewById<TextView>(R.id.apiKeyStatus)
+        fun show() { keyStatus.text = if (StreetView.apiKey(this) != null) "Key saved" else "No key" }
+        show()
+        findViewById<Button>(R.id.btnSaveApiKey).setOnClickListener {
+            val k = edit.text.toString()
+            if (k.isBlank() && StreetView.apiKey(this) != null) {
+                AlertDialog.Builder(this)
+                    .setMessage("Remove the saved API key?")
+                    .setPositiveButton("Remove") { _, _ -> StreetView.saveKey(this, ""); show(); refresh() }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+                return@setOnClickListener
+            }
+            StreetView.saveKey(this, k)
+            edit.setText("")
+            edit.clearFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(edit.windowToken, 0)
+            show()
+            refresh()
+        }
+    }
+
+    /** Full-width Street View banner (140 dp, rounded) for a stop; tapping opens Google Maps with a pin. */
+    private fun streetViewImage(lat: Double, lon: Double): android.view.View? {
+        if (StreetView.apiKey(this) == null) return null
+        val key = StreetView.cacheKey(lat, lon)
+        if (StreetView.knownNone(key)) return null
+        val img = android.widget.ImageView(this).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(140)
+            ).apply { topMargin = dp(4) }
+            scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+            setBackgroundColor(0xFFE0E0E0.toInt())
+            val r = dp(10).toFloat()
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(view: android.view.View, outline: android.graphics.Outline) =
+                    outline.setRoundRect(0, 0, view.width, view.height, r)
+            }
+            clipToOutline = true
+            contentDescription = "Street View – open in Google Maps"
+            tag = key
+            setOnClickListener {
+                try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(StreetView.mapsUrl(lat, lon)))) }
+                catch (e: Exception) { Toast.makeText(this@MainActivity, "No app can open the map", Toast.LENGTH_SHORT).show() }
+            }
+        }
+        val mem = StreetView.cached(key)
+        if (mem != null) { img.setImageBitmap(mem); return img }
+        StreetView.load(this, lat, lon) { bmp ->
+            // The row may have been rebuilt meanwhile: only touch this view if it still shows this spot
+            if (img.tag != key) return@load
+            if (bmp != null) img.setImageBitmap(bmp) else img.visibility = android.view.View.GONE
+        }
+        return img
     }
 
     private fun placesDirty() = editPlaces.text.toString().trimEnd() != Places.text(this)
@@ -559,6 +627,9 @@ class MainActivity : Activity() {
                     textSize = 13f
                     setTextColor(0xFF616161.toInt())
                 })
+                val lat = v.lat
+                val lon = v.lon
+                if (lat != null && lon != null) streetViewImage(lat, lon)?.let { addView(it) }
             })
             // Driving from the previous stop to this one (shown under the arriving stop, in its day)
             if (prev != null) {
