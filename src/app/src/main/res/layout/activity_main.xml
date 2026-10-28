@@ -213,11 +213,64 @@
                     android:layout_height="wrap_content"
                     android:text="Turn off battery optimization" />
 
-                <Button
-                    android:id="@+id/btnPlaces"
+                <!-- Places (merge addresses), edited inline -->
+                <TextView
+                    android:id="@+id/placesTitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Places (merge addresses) …" />
+                    android:layout_marginTop="20dp"
+                    android:text="Places (merge addresses)"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="One place per line: Name;address 1;address 2;…\nWhen the looked-up address matches one of the addresses (case and extra spaces are ignored), the name is logged instead.\nExample: Home;Example Street 1, 0000 Town;Other Road 2, 0000 Town"
+                    android:textIsSelectable="true"
+                    android:textSize="13sp" />
+                <TextView
+                    android:id="@+id/placesLastRaw"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textIsSelectable="true"
+                    android:textSize="13sp" />
+                <EditText
+                    android:id="@+id/editPlaces"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="top|start"
+                    android:hint="Home;Example Street 1, 0000 Town"
+                    android:importantForAutofill="no"
+                    android:inputType="textMultiLine|textNoSuggestions"
+                    android:minLines="4"
+                    android:scrollHorizontally="false"
+                    android:textSize="14sp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+                    <Button
+                        android:id="@+id/btnInsertLast"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Insert last address" />
+                    <Button
+                        android:id="@+id/btnSavePlaces"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Save" />
+                    <TextView
+                        android:id="@+id/placesSaved"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:textSize="13sp" />
+                </LinearLayout>
 
             </LinearLayout>
         </ScrollView>

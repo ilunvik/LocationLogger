@@ -58,15 +58,15 @@ The app has two tabs:
 
   This needs the `WRITE_SECURE_SETTINGS` permission (see below). Without it, the app just requests a
   fix without toggling and shows a warning in the status.
-- **Places (merge addresses)** – an editable list that merges several geocoder addresses for the
+- **Places (merge addresses)** – an editable list, edited directly on the Settings tab, that merges several geocoder addresses for the
   same spot into one name. See [Places](#places).
 - **Allow location "all the time"** and **Turn off battery optimization** – shortcuts to the
   permissions needed for reliable background logging.
 
 ## Places
 
-The geocoder often returns slightly different addresses for the same position. Tap
-**Places (merge addresses) …** on the Settings tab and enter one place per line:
+The geocoder often returns slightly different addresses for the same position. In the
+**Places (merge addresses)** section at the bottom of the Settings tab, enter one place per line:
 
 ```
 Name;address 1;address 2;...
@@ -75,8 +75,9 @@ Home;Example Street 1, 0000 Town;Other Road 2, 0000 Town
 
 When a looked-up address matches any address on a line (case, surrounding spaces and repeated
 spaces are ignored), the **name** (the first part) is logged instead. Empty lines and lines starting
-with `#` are ignored. The dialog shows the last address the phone returned, and *Insert last address*
-pastes it at the cursor. The list is stored on the device only (app preferences), never in this
+with `#` are ignored. The section shows the last address the phone returned (selectable), *Insert last address*
+pastes it at the cursor, and *Save* stores the list ("Saved (N places)" / "Not saved" is shown next
+to it). Leaving the Settings tab with unsaved changes asks whether to save or discard them. The list is stored on the device only (app preferences), never in this
 repository.
 
 ## Visits

@@ -47,7 +47,10 @@ class MainActivity : Activity() {
     }
     private lateinit var btnBackground: Button
     private lateinit var btnBattery: Button
-    private lateinit var btnPlaces: Button
+    private lateinit var editPlaces: EditText
+    private lateinit var placesSaved: TextView
+    private lateinit var btnInsertLast: Button
+    private var placesJustSaved = false
     private lateinit var chkGpsOff: CheckBox
     private lateinit var editInterval: EditText
 
@@ -66,7 +69,9 @@ class MainActivity : Activity() {
         status = findViewById(R.id.status)
         lastCheck = findViewById(R.id.lastCheck)
         settingsStatus = findViewById(R.id.settingsStatus)
-        findViewById<android.view.View>(R.id.tabVisits).setOnClickListener { showTab(0) }
+        findViewById<android.view.View>(R.id.tabVisits).setOnClickListener {
+            if (tab != 1 || confirmLeavePlaces { showTab(0) }) showTab(0)
+        }
         findViewById<android.view.View>(R.id.tabSettings).setOnClickListener { showTab(1) }
         showTab(LogStore.prefs(this).getInt(KEY_TAB, 0))
         visits = findViewById(R.id.visits)
@@ -90,8 +95,7 @@ class MainActivity : Activity() {
         }
         btnBackground.setOnClickListener { askBackgroundLocation() }
         btnBattery.setOnClickListener { askIgnoreBatteryOptimizations() }
-        btnPlaces = findViewById(R.id.btnPlaces)
-        btnPlaces.setOnClickListener { editPlaces() }
+        setupPlaces(savedInstanceState != null)
 
         chkGpsOff = findViewById(R.id.chkGpsOff)
         chkGpsOff.isChecked = LogStore.gpsOffBetween(this)
@@ -188,7 +192,7 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (tab == 1) showTab(0) else @Suppress("DEPRECATION") super.onBackPressed()
+        if (tab == 1) { if (confirmLeavePlaces { showTab(0) }) showTab(0) } else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
     // ---------- settings ----------
@@ -215,60 +219,62 @@ class MainActivity : Activity() {
 
     // ---------- place list ----------
 
-    private fun editPlaces() {
-        val pad = (16 * resources.displayMetrics.density).toInt()
-        val lastRaw = LogStore.prefs(this).getString(LogStore.KEY_LAST_RAW_ADDRESS, null)
-        val help = TextView(this).apply {
-            text = "One place per line: Name;address 1;address 2;…\n" +
-                "When the looked-up address matches one of the addresses (case and extra spaces are ignored), " +
-                "the name is logged instead.\n" +
-                "Example: Home;Example Street 1, 0000 Town;Other Road 2, 0000 Town" +
-                (lastRaw?.let { "\n\nLast address from the phone:\n$it" } ?: "")
-            setTextIsSelectable(true)
-            textSize = 13f
-        }
-        val edit = EditText(this).apply {
-            setText(Places.text(this@MainActivity))
-            hint = "Home;Example Street 1, 0000 Town"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            isSingleLine = false
-            minLines = 4
-            maxLines = 10
-            gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            setHorizontallyScrolling(false)
-            importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO
-        }
-        val box = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(pad, pad / 2, pad, 0)
-            addView(help)
-            addView(edit)
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Places")
-            .setView(android.widget.ScrollView(this).apply { addView(box) })
-            .setPositiveButton("Save") { _, _ ->
-                Places.save(this, edit.text.toString())
-                val n = Places.count(Places.text(this))
-                Toast.makeText(this, "Saved ($n ${if (n == 1) "place" else "places"})", Toast.LENGTH_SHORT).show()
-                refresh()
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-        if (lastRaw != null) {
-            dialog.setButton(AlertDialog.BUTTON_NEUTRAL, "Insert last address") { _, _ -> }
-        }
-        dialog.show()
-        // Keep the dialog open when inserting the last address
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
-            val t = edit.text
-            val pos = edit.selectionStart.coerceAtLeast(0)
+    private fun setupPlaces(restored: Boolean) {
+        editPlaces = findViewById(R.id.editPlaces)
+        placesSaved = findViewById(R.id.placesSaved)
+        if (!restored) editPlaces.setText(Places.text(this)) // otherwise the EditText restores its own text
+        editPlaces.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) { updatePlacesState() }
+        })
+        findViewById<Button>(R.id.btnSavePlaces).setOnClickListener { savePlaces() }
+        btnInsertLast = findViewById(R.id.btnInsertLast)
+        btnInsertLast.setOnClickListener {
+            val lastRaw = LogStore.prefs(this).getString(LogStore.KEY_LAST_RAW_ADDRESS, null) ?: return@setOnClickListener
+            val t = editPlaces.text
+            val pos = editPlaces.selectionStart.coerceAtLeast(0)
             val before = t.substring(0, pos)
             val sep = if (before.isEmpty() || before.endsWith("\n") || before.endsWith(";")) "" else ";"
-            t.insert(pos, sep + (lastRaw ?: ""))
+            t.insert(pos, sep + lastRaw)
+            editPlaces.requestFocus()
         }
+        updatePlacesState()
+    }
+
+    private fun placesDirty() = editPlaces.text.toString().trimEnd() != Places.text(this)
+
+    private fun placesCountText(n: Int) = "$n ${if (n == 1) "place" else "places"}"
+
+    /** The feedback next to Save: "Saved (N places)" after saving, "Not saved" while edited. */
+    private fun updatePlacesState() {
+        placesSaved.text = when {
+            placesDirty() -> "Not saved"
+            placesJustSaved -> "Saved (${placesCountText(Places.count(Places.text(this)))})"
+            else -> ""
+        }
+    }
+
+    private fun savePlaces() {
+        Places.save(this, editPlaces.text.toString())
+        placesJustSaved = true
+        updatePlacesState()
+        refresh()
+    }
+
+    /** Leaving the Settings tab with unsaved place edits: ask first. Returns true if the caller may leave. */
+    private fun confirmLeavePlaces(leave: () -> Unit): Boolean {
+        if (!placesDirty()) return true
+        AlertDialog.Builder(this)
+            .setTitle("Unsaved places")
+            .setMessage("The place list has changes that are not saved.")
+            .setPositiveButton("Save") { _, _ -> savePlaces(); leave() }
+            .setNegativeButton("Discard") { _, _ ->
+                editPlaces.setText(Places.text(this)); placesJustSaved = false; updatePlacesState(); leave()
+            }
+            .setNeutralButton("Keep editing", null)
+            .show()
+        return false
     }
 
     // ---------- permissions ----------
@@ -416,7 +422,12 @@ class MainActivity : Activity() {
         btnBackground.isEnabled = !hasBackgroundLocation()
         btnBattery.isEnabled = !isIgnoringBattery()
         val nPlaces = Places.count(Places.text(this))
-        btnPlaces.text = if (nPlaces == 0) "Places (merge addresses) …" else "Places (merge addresses): $nPlaces …"
+        findViewById<TextView>(R.id.placesTitle).text =
+            if (nPlaces == 0) "Places (merge addresses)" else "Places (merge addresses): ${placesCountText(nPlaces)}"
+        val lastRaw = p.getString(LogStore.KEY_LAST_RAW_ADDRESS, null)
+        findViewById<TextView>(R.id.placesLastRaw).text =
+            "Last address from the phone:\n" + (lastRaw ?: "– (none yet)")
+        btnInsertLast.isEnabled = lastRaw != null
         Thread {
             LogStore.deleteOldTextLogsOnce(this)
             val all = VisitStore.all(this)
