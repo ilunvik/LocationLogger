@@ -365,6 +365,18 @@
                         android:textIsSelectable="true"
                         android:textSize="13sp" />
                 </LinearLayout>
+                <CheckBox
+                    android:id="@+id/checkKeepAdbWifi"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Keep wireless debugging on (when on Wi-Fi)" />
+                <TextView
+                    android:id="@+id/keepAdbWifiStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textIsSelectable="true"
+                    android:textSize="13sp" />
 
             </LinearLayout>
         </ScrollView>

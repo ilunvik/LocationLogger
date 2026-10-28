@@ -288,6 +288,12 @@ class MainActivity : Activity() {
     }
 
     private fun setupDashboard() {
+        val keep = findViewById<android.widget.CheckBox>(R.id.checkKeepAdbWifi)
+        keep.isChecked = AdbReporter.keepWifiOn(this)
+        keep.setOnCheckedChangeListener { _, on ->
+            AdbReporter.setKeepWifiOn(this, on)
+            if (on) Thread { AdbReporter.ensureWifiDebugging(this); runOnUiThread { refresh() } }.start() else refresh()
+        }
         val edit = findViewById<EditText>(R.id.editDashboardUrl)
         edit.setText(AdbReporter.url(this))
         findViewById<Button>(R.id.btnSaveDashboardUrl).setOnClickListener {
@@ -593,6 +599,10 @@ class MainActivity : Activity() {
             "\n" + gps + "\n" + perm +
             (if (isIgnoringBattery()) "\nBattery optimization: off" else "\nBattery optimization: on (may stop logging)") +
             (if (CheckAlarm.canExact(this)) "\nWake-up alarms: exact" else "\nWake-up alarms: inexact (exact alarms not allowed; checks may be late with the screen off)")
+        findViewById<TextView>(R.id.keepAdbWifiStatus).text =
+            (if (GpsToggle.hasPermission(this)) "Permission WRITE_SECURE_SETTINGS: granted"
+             else "Permission WRITE_SECURE_SETTINGS: not granted (grant via adb) – cannot turn it on") +
+            (p.getString(AdbReporter.KEY_KEEP_STATUS, null)?.let { "\nLast: $it" } ?: "")
         findViewById<TextView>(R.id.dashboardStatus).text =
             if (AdbReporter.url(this).isEmpty()) "Off" else (AdbReporter.status(this) ?: "Not reported yet")
         lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")

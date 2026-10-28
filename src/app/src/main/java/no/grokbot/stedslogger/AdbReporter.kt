@@ -32,6 +32,9 @@ object AdbReporter {
     private const val KEY_SIG = "adb_report_sig"
     private const val KEY_AT = "adb_report_at"
     const val KEY_STATUS = "adb_report_status"
+    const val KEY_KEEP_WIFI = "keep_adb_wifi_on"
+    private const val KEY_TCP = "adb_tcp5555_last"
+    const val KEY_KEEP_STATUS = "keep_adb_wifi_status"
     private const val SERVICE_TYPE = "_adb-tls-connect._tcp"
     private const val DISCOVERY_MS = 6_000L
     private const val HEARTBEAT_MS = 60 * 60 * 1000L
@@ -82,6 +85,54 @@ object AdbReporter {
         return Triple(ts, lan, all)
     }
 
+    /** "Keep wireless debugging on": default on when WRITE_SECURE_SETTINGS is granted. */
+    fun keepWifiOn(ctx: Context): Boolean = LogStore.prefs(ctx).getBoolean(KEY_KEEP_WIFI, true)
+
+    fun setKeepWifiOn(ctx: Context, on: Boolean) {
+        LogStore.prefs(ctx).edit().putBoolean(KEY_KEEP_WIFI, on).apply()
+    }
+
+    private fun onWifi(ctx: Context): Boolean = try {
+        val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
+        cm?.allNetworks?.any { n ->
+            cm.getNetworkCapabilities(n)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
+        } == true
+    } catch (_: Exception) { false }
+
+    /**
+     * If enabled and permitted (WRITE_SECURE_SETTINGS, granted via adb), turns wireless debugging back
+     * on (Settings.Global adb_wifi_enabled = 1) when it is off and the phone is on Wi-Fi. This is the
+     * only setting written here.
+     */
+    fun ensureWifiDebugging(ctx: Context) {
+        if (!keepWifiOn(ctx) || !GpsToggle.hasPermission(ctx)) return
+        val cur = try { Settings.Global.getInt(ctx.contentResolver, "adb_wifi_enabled", -1) } catch (_: Exception) { -1 }
+        if (cur != 0 || !onWifi(ctx)) return
+        val ok = try { Settings.Global.putInt(ctx.contentResolver, "adb_wifi_enabled", 1) } catch (e: Exception) { Log.w(TAG, "adb_wifi_enabled", e); false }
+        LogStore.prefs(ctx).edit().putString(KEY_KEEP_STATUS,
+            "${hhmm()}: " + (if (ok) "turned wireless debugging on" else "could not turn wireless debugging on")).apply()
+    }
+
+    /**
+     * Whether adbd listens on TCP 5555 (adb tcpip mode): /proc/net/tcp(6) if readable, else a short
+     * local connection attempt to 127.0.0.1:5555 (closed at once). Must not run on the main thread.
+     */
+    fun tcp5555(): Boolean {
+        for (f in listOf("/proc/net/tcp6", "/proc/net/tcp")) {
+            try {
+                val lines = java.io.File(f).readLines()
+                if (lines.drop(1).any { l ->
+                        val c = l.trim().split(Regex("\\s+"))
+                        c.size > 3 && c[1].endsWith(":15B3", ignoreCase = true) && c[3] == "0A"
+                    }) return true
+            } catch (_: Exception) {}
+        }
+        return try {
+            java.net.Socket().use { it.connect(java.net.InetSocketAddress("127.0.0.1", 5555), 700) }
+            true
+        } catch (_: Exception) { false }
+    }
+
     private fun adbWifi(ctx: Context): String = when (
         try { Settings.Global.getInt(ctx.contentResolver, "adb_wifi_enabled", -1) } catch (_: Exception) { -1 }
     ) { 1 -> "on"; 0 -> "off"; else -> "unknown" }
@@ -95,20 +146,23 @@ object AdbReporter {
         if (running || (!force && now - lastRunAt < MIN_GAP_MS)) return
         running = true
         lastRunAt = now
+        try { ensureWifiDebugging(ctx) } catch (_: Exception) {}
         val wifi = adbWifi(ctx)
-        if (wifi == "off") { finish(ctx, u, wifi, null, force); return }
-        discoverPort(ctx) { port -> finish(ctx, u, wifi, port, force) }
+        if (wifi == "off") { io.execute { finish(ctx, u, wifi, null, force, tcp5555()) }; return }
+        discoverPort(ctx) { port -> io.execute { finish(ctx, u, wifi, port, force, tcp5555()) } }
     }
 
-    private fun finish(ctx: Context, u: String, wifi: String, port: Int?, force: Boolean) {
+    /** Runs on [io]. */
+    private fun finish(ctx: Context, u: String, wifi: String, port: Int?, force: Boolean, tcp: Boolean) {
         val (ts, lan, _) = ownIps()
-        if (wifi != "off" && port == null) {
+        LogStore.prefs(ctx).edit().putBoolean(KEY_TCP, tcp).apply()
+        if (wifi != "off" && port == null && !tcp) {
             setStatus(ctx, "${hhmm()}: wireless debugging port not found (not reported)")
             running = false
             return
         }
         val ip = ts ?: lan
-        val sig = "$wifi|$ts|$lan|$port"
+        val sig = "$wifi|$ts|$lan|$port|$tcp"
         val p = LogStore.prefs(ctx)
         val due = force || sig != p.getString(KEY_SIG, null) ||
             System.currentTimeMillis() - p.getLong(KEY_AT, 0L) > HEARTBEAT_MS
@@ -117,9 +171,10 @@ object AdbReporter {
             put("ip", ip ?: JSONObject.NULL); put("tailscaleIp", ts ?: JSONObject.NULL); put("lanIp", lan ?: JSONObject.NULL)
             put("port", port ?: JSONObject.NULL); put("adbWifi", wifi); put("ts", System.currentTimeMillis())
             put("device", deviceName(ctx))
+            put("tcp5555", tcp)
         }.toString()
-        io.execute {
-            val shown = if (wifi == "off") "wireless debugging off" else "$ip:$port"
+        run {
+            val shown = (if (wifi == "off") "wireless debugging off" else "$ip:${port ?: "?"}") + (if (tcp) " · tcp 5555" else "")
             try {
                 val c = URL(u).openConnection() as HttpURLConnection
                 c.requestMethod = "POST"

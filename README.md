@@ -106,9 +106,14 @@ so the current `adb connect` port is always known. On each check and on network 
  "adbWifi": "on", "ts": 1700000000000, "device": "<device name>"}
 ```
 
-only when the value changed, or about once an hour as a heartbeat (`adbWifi: "off"` and `port: null`
-when wireless debugging is off). Settings shows "Last reported: ip:port at HH:MM". Nothing on the
-phone is turned on or off. Empty URL = disabled. No URL is built in; the endpoint should only be
+(plus `"tcp5555": true/false` – whether adbd listens on TCP 5555, i.e. `adb tcpip 5555` mode, read from
+`/proc/net/tcp*` or a short local connection attempt) only when the value changed, right after boot, or
+about once an hour as a heartbeat (`adbWifi: "off"` and `port: null`
+when wireless debugging is off). Settings shows "Last reported: ip:port at HH:MM". **Keep wireless debugging on** (default on): if
+the app has `WRITE_SECURE_SETTINGS` (granted via `adb shell pm grant no.grokbot.stedslogger
+android.permission.WRITE_SECURE_SETTINGS`) and wireless debugging is off while the phone is on Wi-Fi,
+it sets `Settings.Global adb_wifi_enabled = 1` – the only setting it writes for this. Nothing else is
+turned on or off. Empty URL = disabled. No URL is built in; the endpoint should only be
 reachable from your own network (e.g. a tailnet).
 
 ## Street View
