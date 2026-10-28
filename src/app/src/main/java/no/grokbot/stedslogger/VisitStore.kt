@@ -163,6 +163,12 @@ object VisitStore {
         return if (t > 0) n to t else null
     }
 
+    /** Travelled distance accumulated since leaving the current stop (read-only; null = no legs yet). */
+    fun tripSoFar(ctx: Context): Double? {
+        val p = LogStore.prefs(ctx)
+        return if (p.getInt(KEY_TRIP_LEGS, 0) > 0) p.getString(KEY_TRIP_M, null)?.toDoubleOrNull() else null
+    }
+
     private fun clearCandidate(ctx: Context) {
         LogStore.prefs(ctx).edit()
             .remove(KEY_CAND_NAME).remove(KEY_CAND_AT).remove(KEY_CAND_LAT).remove(KEY_CAND_LON)

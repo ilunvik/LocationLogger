@@ -9,11 +9,20 @@ A small Android app that records the **places you visit**. At a configurable int
 Today · Wed 28 Oct 2026
 ● Home
   arrived 17:40 – now
-  1 h 5 min so far · travelled 12.3 km from previous stop
+  1 h 5 min so far
+     🚗 Driving · 20 min · 12.3 km
   Storgata 1, 0155 Oslo
   arrived 15:10 – left 17:20
-  2 h 10 min · travelled 850 m from previous stop
+  2 h 10 min
+     🚗 Driving · 5 min · 850 m
 ```
+
+Between two stops a lighter, indented **Driving** row shows the travel time (the next stop's
+arrival − the previous stop's departure) and the travelled distance; an unknown value is shown as
+"–", and the row is left out if both are unknown. It sits under the stop it leads to. While you are
+on the move (the current stop was left and a new place has been seen once but not confirmed),
+a "🚗 Driving now · … so far · …" row at the top shows the time since the last check at the stop and
+the distance so far.
 
 The address is looked up in the phone's language: "street + house number, postcode + city",
 falling back to the geocoder's full address line when there is no street name.
@@ -97,7 +106,7 @@ Each visit's coordinates are the average of its first and confirming fix.
 
 ### Travelled distance
 
-The distance shown for a visit is the **travelled distance** from leaving the previous stop to
+The distance shown on a Driving row is the **travelled distance** from leaving the previous stop to
 arriving at this one: the sum of the straight legs between consecutive fixes, from the last fix
 at the previous stop, through every check while moving (unconfirmed candidates and fixes without an
 address included), to the first sighting of the new stop.

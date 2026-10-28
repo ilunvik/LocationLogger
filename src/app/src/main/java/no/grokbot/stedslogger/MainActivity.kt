@@ -432,7 +432,8 @@ class MainActivity : Activity() {
             LogStore.deleteOldTextLogsOnce(this)
             val all = VisitStore.all(this)
             val cand = VisitStore.candidate(this)
-            runOnUiThread { showVisits(all, cand, running) }
+            val trip = VisitStore.tripSoFar(this)
+            runOnUiThread { showVisits(all, cand, running, trip) }
         }.start()
     }
 
@@ -471,9 +472,32 @@ class MainActivity : Activity() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    private fun showVisits(all: List<Visit>, cand: Pair<String, Long>?, running: Boolean) {
+    /**
+     * "🚗 Driving · 25 min · 18.3 km" between two stops: [durationMs] = next arrival − previous
+     * departure, [distanceM] = travelled distance. Unknown values show "–"; null if both are unknown.
+     */
+    private fun drivingRow(durationMs: Long?, distanceM: Double?, ongoing: Boolean): android.view.View? {
+        val dur = durationMs?.takeIf { it >= 0 }
+        if (dur == null && distanceM == null) return null
+        val durText = dur?.let { formatDuration(it) + if (ongoing) " so far" else "" } ?: "–"
+        val distText = distanceM?.let { formatDistance(it.toFloat()) } ?: "–"
+        return TextView(this).apply {
+            text = (if (ongoing) "🚗 Driving now · " else "🚗 Driving · ") + "$durText · $distText"
+            textSize = 13f
+            setTextColor(if (ongoing) 0xFF1565C0.toInt() else 0xFF757575.toInt())
+            setTypeface(typeface, android.graphics.Typeface.ITALIC)
+            setPadding(dp(28), dp(2), 0, dp(2))
+        }
+    }
+
+    private fun showVisits(all: List<Visit>, cand: Pair<String, Long>?, running: Boolean, trip: Double?) {
         visits.removeAllViews()
         val now = System.currentTimeMillis()
+        // Ongoing trip: the current stop has been left (a new place was seen once) but not confirmed yet
+        val cur = all.lastOrNull()
+        if (cand != null && running && cur != null) {
+            drivingRow(cur.departure?.let { now - it }, trip, ongoing = true)?.let { visits.addView(it) }
+        }
         if (cand != null && running) {
             visits.addView(TextView(this).apply {
                 text = "Seen once: ${cand.first} at ${timeFmt.format(Date(cand.second))} – becomes a visit if confirmed at the next check"
@@ -518,10 +542,7 @@ class MainActivity : Activity() {
                 next != null -> "$arrived – left ?" to "up to ${formatDuration(next.arrival - v.arrival)}"
                 else -> "$arrived – left ?" to null
             }
-            val details = listOfNotNull(
-                duration,
-                v.travelledM?.takeIf { prev != null }?.let { "travelled ${formatDistance(it.toFloat())} from previous stop" },
-            ).joinToString(" · ")
+            val details = duration ?: ""
 
             visits.addView(android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
@@ -539,6 +560,11 @@ class MainActivity : Activity() {
                     setTextColor(0xFF616161.toInt())
                 })
             })
+            // Driving from the previous stop to this one (shown under the arriving stop, in its day)
+            if (prev != null) {
+                drivingRow(prev.departure?.let { v.arrival - it }, v.travelledM, ongoing = false)
+                    ?.let { visits.addView(it) }
+            }
         }
         if (first > 0) visits.addView(TextView(this).apply {
             text = "($first older visits not shown)"
