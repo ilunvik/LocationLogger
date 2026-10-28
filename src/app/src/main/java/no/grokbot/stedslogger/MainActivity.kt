@@ -34,6 +34,7 @@ class MainActivity : Activity() {
     private lateinit var log: TextView
     private lateinit var btnBackground: Button
     private lateinit var btnBattery: Button
+    private lateinit var btnPlaces: Button
     private lateinit var chkGpsOff: CheckBox
     private lateinit var editInterval: EditText
 
@@ -64,6 +65,8 @@ class MainActivity : Activity() {
         }
         btnBackground.setOnClickListener { askBackgroundLocation() }
         btnBattery.setOnClickListener { askIgnoreBatteryOptimizations() }
+        btnPlaces = findViewById(R.id.btnPlaces)
+        btnPlaces.setOnClickListener { editPlaces() }
 
         chkGpsOff = findViewById(R.id.chkGpsOff)
         chkGpsOff.isChecked = LogStore.gpsOffBetween(this)
@@ -112,6 +115,64 @@ class MainActivity : Activity() {
             Toast.makeText(this, "Now checking every $v min", Toast.LENGTH_SHORT).show()
         }
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editInterval.windowToken, 0)
+    }
+
+    // ---------- place list ----------
+
+    private fun editPlaces() {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val lastRaw = LogStore.prefs(this).getString(LogStore.KEY_LAST_RAW_ADDRESS, null)
+        val help = TextView(this).apply {
+            text = "One place per line: Name;address 1;address 2;…\n" +
+                "When the looked-up address matches one of the addresses (case and extra spaces are ignored), " +
+                "the name is logged instead.\n" +
+                "Example: Home;Example Street 1, 0000 Town;Other Road 2, 0000 Town" +
+                (lastRaw?.let { "\n\nLast address from the phone:\n$it" } ?: "")
+            setTextIsSelectable(true)
+            textSize = 13f
+        }
+        val edit = EditText(this).apply {
+            setText(Places.text(this@MainActivity))
+            hint = "Home;Example Street 1, 0000 Town"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            isSingleLine = false
+            minLines = 4
+            maxLines = 10
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            setHorizontallyScrolling(false)
+            importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+            addView(help)
+            addView(edit)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Places")
+            .setView(android.widget.ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Save") { _, _ ->
+                Places.save(this, edit.text.toString())
+                val n = Places.count(Places.text(this))
+                Toast.makeText(this, "Saved ($n ${if (n == 1) "place" else "places"})", Toast.LENGTH_SHORT).show()
+                refresh()
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        if (lastRaw != null) {
+            dialog.setButton(AlertDialog.BUTTON_NEUTRAL, "Insert last address") { _, _ -> }
+        }
+        dialog.show()
+        // Keep the dialog open when inserting the last address
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+            val t = edit.text
+            val pos = edit.selectionStart.coerceAtLeast(0)
+            val before = t.substring(0, pos)
+            val sep = if (before.isEmpty() || before.endsWith("\n") || before.endsWith(";")) "" else ";"
+            t.insert(pos, sep + (lastRaw ?: ""))
+        }
     }
 
     // ---------- permissions ----------
@@ -250,6 +311,8 @@ class MainActivity : Activity() {
         lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")
         btnBackground.isEnabled = !hasBackgroundLocation()
         btnBattery.isEnabled = !isIgnoringBattery()
+        val nPlaces = Places.count(Places.text(this))
+        btnPlaces.text = if (nPlaces == 0) "Places (merge addresses) …" else "Places (merge addresses): $nPlaces …"
         filePath.text = "File: " + LogStore.describeLocation(this)
         Thread {
             val text = LogStore.readAll(this)

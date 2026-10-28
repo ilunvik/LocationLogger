@@ -110,6 +110,12 @@
         android:layout_height="wrap_content"
         android:text="Turn off battery optimization" />
 
+    <Button
+        android:id="@+id/btnPlaces"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Places (merge addresses) …" />
+
     <TextView
         android:id="@+id/filePath"
         android:layout_width="match_parent"

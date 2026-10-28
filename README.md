@@ -2,7 +2,7 @@
 
 A small Android app that logs the **street address** you are at. At a configurable interval
 (default every 5 minutes) it gets the phone's location, reverse-geocodes it to an address and,
-**only if the address has changed**, appends a line to `location.txt`:
+**only when you have arrived at a new place** (see [Logging rule](#logging-rule)), appends a line to `location.txt`:
 
 ```
 2026-10-26 03:49 | Storgata 1, 0155 Oslo
@@ -44,8 +44,40 @@ The latest entries (newest first) are also shown on the main screen.
 
   This needs the `WRITE_SECURE_SETTINGS` permission (see below). Without it, the app just requests a
   fix without toggling and shows a warning in the status.
+- **Places (merge addresses)** – an editable list that merges several geocoder addresses for the
+  same spot into one name. See [Places](#places).
 - **Allow location "all the time"** and **Turn off battery optimization** – shortcuts to the
   permissions needed for reliable background logging.
+
+## Places
+
+The geocoder often returns slightly different addresses for the same position. Tap
+**Places (merge addresses) …** on the main screen and enter one place per line:
+
+```
+Name;address 1;address 2;...
+Home;Example Street 1, 0000 Town;Other Road 2, 0000 Town
+```
+
+When a looked-up address matches any address on a line (case, surrounding spaces and repeated
+spaces are ignored), the **name** (the first part) is logged instead. Empty lines and lines starting
+with `#` are ignored. The dialog shows the last address the phone returned, and *Insert last address*
+pastes it at the cursor. The list is stored on the device only (app preferences), never in the log
+file or this repository.
+
+## Logging rule
+
+For each successful check the address is first corrected with the place list, then:
+
+1. If it is the same place as the last logged entry, nothing is logged.
+2. If it is a new place, it is remembered as a candidate but **not** logged yet.
+3. If the next successful check gives the same candidate, it is logged (with the time of that
+   second check).
+
+So a place must be seen on two checks in a row before it is logged, and it is logged only once
+while you stay there. Checks without a location fix or without an address are skipped: they neither
+confirm nor reset the candidate. *Check now* counts as a check. Existing entries in `location.txt`
+are left unchanged.
 
 ## Permissions
 
@@ -133,6 +165,7 @@ src/                      Gradle project
       LocationService.kt   foreground service, checks, GPS toggling, logging
       GpsToggle.kt         system location on/off via Settings.Secure
       LogStore.kt          location.txt (MediaStore / fallback) and preferences
+      Places.kt            place list: merges several addresses into one name
       BootReceiver.kt      restart after reboot / update
     src/main/res/          layout, icons, strings
 ```

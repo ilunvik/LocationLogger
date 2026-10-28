@@ -391,23 +391,44 @@ class LocationService : Service() {
         return if (parts.isEmpty()) null else parts.joinToString(", ")
     }
 
+    /**
+     * Logging rule (since 1.6):
+     * 1. The geocoded address is first "corrected" with the place list ([Places]), so several
+     *    addresses for the same spot become one name.
+     * 2. A corrected place is only logged once it has been seen on two consecutive successful
+     *    readings (the first one is kept as a pending candidate). Readings with no fix or no
+     *    address are skipped and neither confirm nor reset the candidate.
+     * 3. While you stay at the last logged place, nothing more is logged.
+     */
     private fun onAddress(a: Address?) {
         busy = false
-        val address = a?.let { formatAddress(it) }
-        if (address == null) {
+        val raw = a?.let { formatAddress(it) }
+        if (raw == null) {
             setLastCheck("No address found (requires internet) – retrying in ${LogStore.intervalMin(this)} min")
             return
         }
         val p = LogStore.prefs(this)
+        val places = Places.parse(Places.text(this))
+        val place = Places.resolve(places, raw)
+        val shown = if (place == raw) raw else "$place ($raw)"
+        p.edit().putString(LogStore.KEY_LAST_RAW_ADDRESS, raw).apply()
+
         val last = p.getString(LogStore.KEY_LAST_ADDRESS, null)
-        if (address == last) {
-            setLastCheck("Same address ($address)")
+        if (Places.same(places, place, last)) {
+            p.edit().remove(LogStore.KEY_PENDING_ADDRESS).apply()
+            setLastCheck("Same place ($shown)")
             return
         }
-        val line = "${now("yyyy-MM-dd HH:mm")} | $address"
+        val pending = p.getString(LogStore.KEY_PENDING_ADDRESS, null)
+        if (!Places.same(places, place, pending)) {
+            p.edit().putString(LogStore.KEY_PENDING_ADDRESS, place).apply()
+            setLastCheck("New place seen once: $shown – logged if it is the same at the next check")
+            return
+        }
+        val line = "${now("yyyy-MM-dd HH:mm")} | $place"
         if (LogStore.append(this, line)) {
-            p.edit().putString(LogStore.KEY_LAST_ADDRESS, address).apply()
-            setLastCheck("New address saved: $address")
+            p.edit().putString(LogStore.KEY_LAST_ADDRESS, place).remove(LogStore.KEY_PENDING_ADDRESS).apply()
+            setLastCheck("New place saved: $shown")
             updateNotification(statusText())
         } else {
             setLastCheck("Could not write to ${LogStore.FILE_NAME}")

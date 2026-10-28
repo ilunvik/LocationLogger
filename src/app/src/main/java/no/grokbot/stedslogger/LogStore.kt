@@ -16,7 +16,9 @@ object LogStore {
     const val FILE_NAME = "location.txt"
     const val PREFS = "stedslogger"
     const val KEY_RUNNING = "running"
-    const val KEY_LAST_ADDRESS = "last_address"
+    const val KEY_LAST_ADDRESS = "last_address"          // last logged place (after the place list)
+    const val KEY_PENDING_ADDRESS = "pending_address"    // seen once, waiting for a second reading
+    const val KEY_LAST_RAW_ADDRESS = "last_raw_address"  // last address exactly as the geocoder gave it
     const val KEY_LAST_CHECK = "last_check"
     const val KEY_FILE_URI = "file_uri"
     const val KEY_LOG_VERSION = "log_version"
