@@ -37,19 +37,28 @@ falling back to the geocoder's full address line when there is no street name.
 ## Where the data is saved
 
 Visits are stored privately in the app (`files/visits.json` in the app's data directory; not visible
-in a file manager, removed on uninstall). Nothing is written to shared storage.
+in a file manager, removed on uninstall). Since 1.25 a debug log is kept next to it (`files/events.log`,
+at most 4000 entries, oldest dropped first). Nothing is written to shared storage.
 
 ## Screens
 
-The app has two tabs:
+The app has three tabs:
 
 - **Visits** – running/stopped status (with a warning if a permission or battery setting needs
   attention), the last check, **Check now** (its progress, "Checking now …", and then its result are shown in the
   status line for 2 minutes), the "Seen once" candidate and the visit list. The
   current visit's duration updates every minute.
 - **Settings** – detailed status (GPS control, location permission, battery optimization),
-  **Start / Stop logging** and the settings below. Back on the Settings tab returns to Visits; the
-  app reopens on the tab you used last.
+  **Start / Stop logging** and the settings below.
+- **Log** (since 1.25, labels in Norwegian) – every debug entry, newest first, with time (phone's time
+  zone), type and details: check started / result (`SJEKK`), every raw location fix with coordinates,
+  provider, accuracy and age (`POSISJON`), visit outcome (`BESØK`), the stored visits' arrival / last seen
+  (`BESØKSLISTE`), dashboard reports and wireless-debugging changes (`ADB`), network changes (`NETT`),
+  service start/stop, boot, update and alarm restarts (`TJENESTE`) and errors (`FEIL`). A type filter,
+  **Oppdater** (refresh), **Kopier** (copy as text), **Del** (share) and **Tøm** (clear, after confirming;
+  visits are kept). Long-press an entry to copy it.
+
+Back on the Settings or Log tab returns to Visits; the app reopens on the tab you used last.
 
 ## Settings
 
@@ -294,6 +303,10 @@ src/                      Gradle project
       LocationService.kt   foreground service, checks, GPS toggling, logging
       GpsToggle.kt         system location on/off via Settings.Secure
       LogStore.kt          preferences
+      EventLog.kt          debug log (events.log, capped)
+      LogTab.kt            the Log tab
+      AdbReporter.kt       optional dashboard report of the wireless-debugging address
+      CheckAlarm.kt        wake-up alarms for the periodic checks
       VisitStore.kt        visits (visits.json), arrival/departure, travelled distance
       Places.kt            place list: merges several addresses into one name
       StreetView.kt        Street View images for stops (API key, download, cache)

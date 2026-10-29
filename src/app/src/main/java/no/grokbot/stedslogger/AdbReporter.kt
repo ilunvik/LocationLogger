@@ -56,6 +56,7 @@ object AdbReporter {
 
     private fun setStatus(ctx: Context, s: String) {
         LogStore.prefs(ctx).edit().putString(KEY_STATUS, s).apply()
+        EventLog.add(ctx, EventLog.ADB, s)
     }
 
     private fun hhmm() = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -136,7 +137,8 @@ object AdbReporter {
         if (!keepWifiOn(ctx) || !GpsToggle.hasPermission(ctx)) return false
         val cur = try { Settings.Global.getInt(ctx.contentResolver, "adb_wifi_enabled", -1) } catch (_: Exception) { -1 }
         if (cur != 0 || !onWifi(ctx)) return false
-        val ok = try { Settings.Global.putInt(ctx.contentResolver, "adb_wifi_enabled", 1) } catch (e: Exception) { Log.w(TAG, "adb_wifi_enabled", e); false }
+        val ok = try { Settings.Global.putInt(ctx.contentResolver, "adb_wifi_enabled", 1) } catch (e: Exception) { EventLog.error(ctx, "adb_wifi_enabled", e); false }
+        EventLog.add(ctx, EventLog.ADB, if (ok) "Trådløs feilsøking var av – slått på igjen" else "Trådløs feilsøking var av – kunne ikke slå den på")
         LogStore.prefs(ctx).edit().putString(KEY_KEEP_STATUS,
             "${hhmm()}: " + (if (ok) "turned wireless debugging on" else "could not turn wireless debugging on")).apply()
         return ok
@@ -205,7 +207,10 @@ object AdbReporter {
         val p = LogStore.prefs(ctx)
         val due = force || sig != p.getString(KEY_SIG, null) ||
             System.currentTimeMillis() - p.getLong(KEY_AT, 0L) > HEARTBEAT_MS
-        if (!due) { done(ctx); return }
+        if (!due) {
+            EventLog.add(ctx, EventLog.ADB, "Uendret (${if (wifi == "off") "trådløs feilsøking av" else "port ${port ?: "?"}"}${if (tcp) ", tcp 5555" else ""}) – ikke rapportert")
+            done(ctx); return
+        }
         val body = JSONObject().apply {
             put("ip", ip ?: JSONObject.NULL); put("tailscaleIp", ts ?: JSONObject.NULL); put("lanIp", lan ?: JSONObject.NULL)
             put("port", port ?: JSONObject.NULL); put("adbWifi", wifi); put("ts", System.currentTimeMillis())
@@ -231,6 +236,7 @@ object AdbReporter {
                 } else setStatus(ctx, "${hhmm()}: dashboard answered HTTP $code ($shown not reported)")
             } catch (e: Exception) {
                 setStatus(ctx, "${hhmm()}: could not reach the dashboard (${e.javaClass.simpleName})")
+                EventLog.error(ctx, "Dashbord-rapport feilet", e)
             } finally { done(ctx) }
         }
     }

@@ -95,33 +95,42 @@ class LocationService : Service() {
         }
         lastTickAt = now
         LogStore.prefs(this).edit().putLong(KEY_LAST_TICK_AT, now).apply()
+        EventLog.add(this, EventLog.CHECK, "Periodisk sjekk startet (hvert ${LogStore.intervalMin(this)}. min)")
         checkLocation()
         scheduleNext()
-        try { AdbReporter.maybeReport(this) } catch (e: Exception) { Log.w(TAG, "adb report failed", e) }
+        try { AdbReporter.maybeReport(this) } catch (e: Exception) { EventLog.error(this, "adb-rapport feilet", e) }
     }
 
     // Network changes: report the wireless-debugging address right away so the dashboard host can react
     // (debounced a few seconds so a burst of callbacks becomes one report; only if a URL is set)
     private var netCallback: android.net.ConnectivityManager.NetworkCallback? = null
-    private val netReport = Runnable { try { AdbReporter.maybeReport(this, force = true) } catch (_: Exception) {} }
-    private fun scheduleNetReport(delayMs: Long = NET_DEBOUNCE_MS) { handler.removeCallbacks(netReport); handler.postDelayed(netReport, delayMs) }
+    private var netReason = "nettverksendring"
+    private val netReport = Runnable {
+        EventLog.add(this, EventLog.NET, "$netReason – rapporterer adb-adressen")
+        try { AdbReporter.maybeReport(this, force = true) } catch (e: Exception) { EventLog.error(this, "adb-rapport feilet", e) }
+    }
+    private fun scheduleNetReport(delayMs: Long = NET_DEBOUNCE_MS, reason: String = "Nettverksendring") {
+        netReason = reason
+        handler.removeCallbacks(netReport); handler.postDelayed(netReport, delayMs)
+    }
 
     private fun startNetWatch() {
         if (netCallback != null) return
         val cm = getSystemService(android.net.ConnectivityManager::class.java) ?: return
         val cb = object : android.net.ConnectivityManager.NetworkCallback() {
             private var wasWifi: Boolean? = null
-            override fun onAvailable(network: android.net.Network) = scheduleNetReport()
-            override fun onLost(network: android.net.Network) = scheduleNetReport()
-            override fun onLinkPropertiesChanged(network: android.net.Network, lp: android.net.LinkProperties) = scheduleNetReport()
+            override fun onAvailable(network: android.net.Network) = scheduleNetReport(reason = "Nettverk tilgjengelig")
+            override fun onLost(network: android.net.Network) = scheduleNetReport(reason = "Nettverk mistet")
+            override fun onLinkPropertiesChanged(network: android.net.Network, lp: android.net.LinkProperties) =
+                scheduleNetReport(reason = "Nettverksadresser endret (${lp.interfaceName ?: "?"})")
             override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) {
                 // Only react when the default network switches between Wi-Fi and something else (not signal changes)
                 val wifi = caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
-                if (wasWifi != null && wasWifi != wifi) scheduleNetReport()
+                if (wasWifi != null && wasWifi != wifi) scheduleNetReport(reason = if (wifi) "Byttet til Wi-Fi" else "Byttet fra Wi-Fi")
                 wasWifi = wifi
             }
         }
-        try { cm.registerDefaultNetworkCallback(cb); netCallback = cb } catch (e: Exception) { Log.w(TAG, "network callback", e) }
+        try { cm.registerDefaultNetworkCallback(cb); netCallback = cb } catch (e: Exception) { EventLog.error(this, "Kunne ikke lytte på nettverksendringer", e) }
     }
 
     private fun stopNetWatch() {
@@ -176,10 +185,10 @@ class LocationService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> { stopEverything(); return START_NOT_STICKY }
+            ACTION_STOP -> { EventLog.add(this, EventLog.SERVICE, "Logging stoppet"); stopEverything(); return START_NOT_STICKY }
         }
         if (!hasLocationPermission()) {
-            Log.w(TAG, "No location permission, stopping")
+            EventLog.error(this, "Mangler posisjonstillatelse – tjenesten stopper")
             // Must still call startForeground quickly after startForegroundService
             try { goForeground("Missing location permission") } catch (_: Exception) {}
             stopEverything()
@@ -188,12 +197,18 @@ class LocationService : Service() {
         try {
             goForeground(statusText())
         } catch (e: Exception) {
-            Log.e(TAG, "startForeground failed", e)
+            EventLog.error(this, "startForeground feilet", e)
             stopSelf()
             return START_NOT_STICKY
         }
         LogStore.prefs(this).edit().putBoolean(LogStore.KEY_RUNNING, true).apply()
         if (!running) {
+            EventLog.add(this, EventLog.SERVICE, "Tjenesten startet (" + when (intent?.action) {
+                null -> "omstart av Android"
+                ACTION_CHECK_NOW -> "Sjekk nå"
+                ACTION_ALARM -> "alarm etter at tjenesten var drept"
+                else -> "start"
+            } + ", app ${appVersion()})")
             running = true
             instance = this
             executor.execute { try { LogStore.deleteOldTextLogsOnce(this) } catch (e: Exception) { Log.w(TAG, "text log cleanup failed", e) } }
@@ -208,6 +223,7 @@ class LocationService : Service() {
             if (intent?.action == ACTION_CHECK_NOW) lastTickAt = 0L
             handler.post(tick)
         } else if (intent?.action == ACTION_CHECK_NOW) {
+            EventLog.add(this, EventLog.CHECK, "Manuell sjekk (Sjekk nå)")
             holdCheckWake()
             checkLocation()
         } else if (intent?.action == ACTION_ALARM) {
@@ -235,7 +251,12 @@ class LocationService : Service() {
         stopSelf()
     }
 
+    private fun appVersion(): String = try {
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+    } catch (_: Exception) { "?" }
+
     override fun onDestroy() {
+        if (running) EventLog.add(this, EventLog.SERVICE, "Tjenesten avsluttet av Android (onDestroy)")
         if (instance === this) instance = null
         // The alarm is kept if logging is still on: it restarts the service if Android killed it
         releaseCheckWake()
@@ -330,6 +351,7 @@ class LocationService : Service() {
         val note = toggleNote?.takeIf { it != msg }?.let { " · $it" } ?: ""
         LogStore.prefs(this).edit().putString(LogStore.KEY_LAST_CHECK, "${now("HH:mm")}: $msg$note")
             .putLong(LogStore.KEY_LAST_CHECK_AT, System.currentTimeMillis()).apply()
+        EventLog.add(this, EventLog.CHECK, "Resultat: $msg$note")
     }
 
     // ---------- location ----------
@@ -348,7 +370,8 @@ class LocationService : Service() {
     private fun gpsOffAfterFix() {
         if (!gpsToggledForCheck) return
         gpsToggledForCheck = false
-        if (!GpsToggle.set(this, false)) Log.w(TAG, "Could not turn location off")
+        if (GpsToggle.set(this, false)) EventLog.add(this, EventLog.CHECK, "GPS slått av igjen")
+        else EventLog.error(this, "Kunne ikke slå av GPS igjen")
     }
 
     private fun endCheck(msg: String) {
@@ -389,7 +412,7 @@ class LocationService : Service() {
         try {
             lm.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 60_000L, 0f, l, Looper.getMainLooper())
             passiveListener = l
-        } catch (e: Exception) { Log.w(TAG, "passive listener failed", e) }
+        } catch (e: Exception) { EventLog.error(this, "Passiv posisjonslytter feilet", e) }
     }
 
     private fun stopPassive() {
@@ -400,7 +423,8 @@ class LocationService : Service() {
     }
 
     private fun checkLocation() {
-        if (busy || !hasLocationPermission()) return
+        if (busy) { EventLog.add(this, EventLog.CHECK, "Hoppet over: forrige sjekk pågår fortsatt"); return }
+        if (!hasLocationPermission()) { EventLog.error(this, "Sjekk hoppet over: mangler posisjonstillatelse"); return }
         busy = true
         holdCheckWake()
         toggleNote = null
@@ -416,7 +440,8 @@ class LocationService : Service() {
                 gpsToggledForCheck = wasOffBefore
                 if (wasOffBefore) {
                     // 2) Turn it ON for this check
-                    if (!GpsToggle.set(this, true)) toggleNote = "Could not turn GPS on"
+                    if (!GpsToggle.set(this, true)) { toggleNote = "Could not turn GPS on"; EventLog.error(this, "Kunne ikke slå på GPS") }
+                    else EventLog.add(this, EventLog.CHECK, "GPS var av – slått på for sjekken")
                     waitForLocationOn(lm, System.currentTimeMillis())
                     return
                 }
@@ -530,7 +555,7 @@ class LocationService : Service() {
                 errors[provider] = "permission denied"
                 onResult(provider, null)
             } catch (e: Exception) {
-                Log.w(TAG, "location request failed for $provider", e)
+                EventLog.error(this, "Posisjonsforespørsel feilet for $provider", e)
                 errors[provider] = "error: ${e.javaClass.simpleName}"
                 onResult(provider, null)
             }
@@ -538,6 +563,9 @@ class LocationService : Service() {
     }
 
     private fun onLocation(loc: Location) {
+        EventLog.add(this, EventLog.FIX, String.format(Locale.ROOT, "%.6f, %.6f · %s · ±%s m · %d s gammel",
+            loc.latitude, loc.longitude, loc.provider ?: "?",
+            if (loc.hasAccuracy()) Math.round(loc.accuracy).toString() else "?", ageMs(loc) / 1000))
         if (!Geocoder.isPresent()) {
             setLastCheck("Geocoding is not available on this phone")
             busy = false
@@ -598,7 +626,7 @@ class LocationService : Service() {
         releaseCheckWake()
         val raw = a?.let { formatAddress(it) }
         if (raw == null) {
-            try { VisitStore.onFixOnly(this, loc) } catch (e: Exception) { Log.w(TAG, "trip update failed", e) }
+            try { VisitStore.onFixOnly(this, loc) } catch (e: Exception) { EventLog.error(this, "Turoppdatering feilet", e) }
             setLastCheck("No address found (requires internet) – retrying in ${LogStore.intervalMin(this)} min")
             return
         }
@@ -609,10 +637,15 @@ class LocationService : Service() {
         val outcome = try {
             VisitStore.onCheck(this, place, System.currentTimeMillis(), loc)
         } catch (e: Exception) {
-            Log.e(TAG, "could not save visit", e)
+            EventLog.error(this, "Kunne ikke lagre besøket", e)
             setLastCheck("Could not save the visit: ${e.message}")
             return
         }
+        EventLog.add(this, EventLog.VISIT, when (outcome) {
+            VisitStore.Outcome.SAME_PLACE -> "Fortsatt på: $shown"
+            VisitStore.Outcome.CANDIDATE -> "Nytt sted sett én gang: $shown"
+            VisitStore.Outcome.NEW_VISIT -> "Nytt besøk: $shown"
+        })
         when (outcome) {
             VisitStore.Outcome.SAME_PLACE -> setLastCheck("Still at $shown")
             VisitStore.Outcome.CANDIDATE ->

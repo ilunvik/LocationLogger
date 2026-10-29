@@ -78,6 +78,10 @@ class MainActivity : Activity() {
             if (tab != 1 || confirmLeavePlaces { showTab(0) }) showTab(0)
         }
         findViewById<android.view.View>(R.id.tabSettings).setOnClickListener { showTab(1) }
+        findViewById<android.view.View>(R.id.tabLog).setOnClickListener {
+            if (tab != 1 || confirmLeavePlaces { showTab(2) }) showTab(2)
+        }
+        logTab = LogTab(this)
         showTab(LogStore.prefs(this).getInt(KEY_TAB, 0))
         visits = findViewById(R.id.visits)
         btnBackground = findViewById(R.id.btnBackground)
@@ -129,6 +133,7 @@ class MainActivity : Activity() {
         LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
         uiHandler.removeCallbacks(minuteTick)
         uiHandler.post(minuteTick) // refreshes now and every minute (running duration)
+        if (tab == 2) logTab.load()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -182,18 +187,22 @@ class MainActivity : Activity() {
     // ---------- tabs ----------
 
     private var tab = 0
+    private lateinit var logTab: LogTab
 
     private fun showTab(index: Int) {
-        tab = if (index == 1) 1 else 0
-        findViewById<android.view.View>(R.id.pageVisits).visibility = if (tab == 0) android.view.View.VISIBLE else android.view.View.GONE
-        findViewById<android.view.View>(R.id.pageSettings).visibility = if (tab == 1) android.view.View.VISIBLE else android.view.View.GONE
+        tab = if (index in 0..2) index else 0
+        val pages = listOf(R.id.pageVisits, R.id.pageSettings, R.id.pageLog)
+        val labels = listOf(R.id.tabVisitsLabel, R.id.tabSettingsLabel, R.id.tabLogLabel)
+        val lines = listOf(R.id.tabVisitsLine, R.id.tabSettingsLine, R.id.tabLogLine)
         val on = 0xFF1565C0.toInt()
         val off = 0xFF757575.toInt()
-        findViewById<TextView>(R.id.tabVisitsLabel).setTextColor(if (tab == 0) on else off)
-        findViewById<TextView>(R.id.tabSettingsLabel).setTextColor(if (tab == 1) on else off)
-        findViewById<android.view.View>(R.id.tabVisitsLine).visibility = if (tab == 0) android.view.View.VISIBLE else android.view.View.INVISIBLE
-        findViewById<android.view.View>(R.id.tabSettingsLine).visibility = if (tab == 1) android.view.View.VISIBLE else android.view.View.INVISIBLE
-        if (tab == 0) {
+        for (i in 0..2) {
+            findViewById<android.view.View>(pages[i]).visibility = if (tab == i) android.view.View.VISIBLE else android.view.View.GONE
+            findViewById<TextView>(labels[i]).setTextColor(if (tab == i) on else off)
+            findViewById<android.view.View>(lines[i]).visibility = if (tab == i) android.view.View.VISIBLE else android.view.View.INVISIBLE
+        }
+        if (tab == 2) logTab.load()
+        if (tab != 1) {
             currentFocus?.let {
                 (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(it.windowToken, 0)
                 it.clearFocus()
@@ -204,7 +213,9 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (tab == 1) { if (confirmLeavePlaces { showTab(0) }) showTab(0) } else @Suppress("DEPRECATION") super.onBackPressed()
+        if (tab == 1) { if (confirmLeavePlaces { showTab(0) }) showTab(0) }
+        else if (tab == 2) showTab(0)
+        else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
     // ---------- settings ----------

@@ -40,7 +40,7 @@ object GpsToggle {
         try {
             @Suppress("DEPRECATION")
             ok = Settings.Secure.putInt(cr, Settings.Secure.LOCATION_MODE, if (on) MODE_HIGH_ACCURACY else MODE_OFF)
-        } catch (e: Exception) { Log.w(TAG, "LOCATION_MODE write failed", e) }
+        } catch (e: Exception) { EventLog.error(ctx, "GPS: LOCATION_MODE kunne ikke skrives", e) }
         // 2) Older Android (8.x): per-provider string LOCATION_PROVIDERS_ALLOWED (+gps,+network / -gps,-network).
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             try {
@@ -50,7 +50,7 @@ object GpsToggle {
                 Settings.Secure.putString(cr, key, "${sign}gps")
                 Settings.Secure.putString(cr, key, "${sign}network")
                 ok = true
-            } catch (e: Exception) { Log.w(TAG, "LOCATION_PROVIDERS_ALLOWED write failed", e) }
+            } catch (e: Exception) { EventLog.error(ctx, "GPS: LOCATION_PROVIDERS_ALLOWED kunne ikke skrives", e) }
         }
         // 3) Android 9+: also try LocationManager.setLocationEnabledForUser (system API, via reflection).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && isLocationOn(ctx) != on) {
@@ -61,7 +61,7 @@ object GpsToggle {
                 )
                 m.invoke(lm, on, Process.myUserHandle())
                 ok = true
-            } catch (e: Throwable) { Log.w(TAG, "setLocationEnabledForUser failed", e) }
+            } catch (e: Throwable) { EventLog.error(ctx, "GPS: setLocationEnabledForUser feilet", e) }
         }
         return ok
     }

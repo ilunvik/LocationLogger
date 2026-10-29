@@ -74,7 +74,7 @@ object VisitStore {
                     )
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "could not read $FILE", e)
+                EventLog.error(ctx, "Kunne ikke lese $FILE (lagt til side)", e)
                 // Keep the unreadable file aside instead of overwriting it
                 f.renameTo(File(ctx.filesDir, "$FILE.broken-${System.currentTimeMillis()}"))
             }

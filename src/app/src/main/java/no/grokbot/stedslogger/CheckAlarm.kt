@@ -41,7 +41,7 @@ object CheckAlarm {
             if (canExact(ctx)) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
             else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
         } catch (e: SecurityException) {
-            Log.w(TAG, "exact alarm refused, using inexact", e)
+            EventLog.error(ctx, "Eksakt alarm nektet, bruker unøyaktig", e)
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
         }
     }
@@ -62,8 +62,9 @@ class CheckAlarmReceiver : BroadcastReceiver() {
             svc.onAlarm()
         } else {
             // Service was killed: an exact allow-while-idle alarm may start a foreground service
+            EventLog.add(context, EventLog.SERVICE, "Alarm: tjenesten var stoppet av Android – starter den igjen")
             try { LocationService.start(context, LocationService.ACTION_ALARM) }
-            catch (e: Exception) { Log.w("LocationLogger", "could not restart service from alarm", e) }
+            catch (e: Exception) { EventLog.error(context, "Kunne ikke starte tjenesten fra alarmen", e) }
         }
     }
 }
