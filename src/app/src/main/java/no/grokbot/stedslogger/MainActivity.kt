@@ -305,6 +305,21 @@ class MainActivity : Activity() {
             AdbReporter.setKeepWifiOn(this, on)
             if (on) Thread { AdbReporter.ensureWifiDebugging(this); runOnUiThread { refresh() } }.start() else refresh()
         }
+        val ipEdit = findViewById<EditText>(R.id.editDashboardIp)
+        ipEdit.setText(AdbReporter.fallbackIp(this))
+        findViewById<Button>(R.id.btnSaveDashboardIp).setOnClickListener {
+            val ip = ipEdit.text.toString().trim()
+            if (ip.isNotEmpty() && !AdbReporter.isIpLiteral(ip)) {
+                Toast.makeText(this, "Enter an IP address (not a host name)", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            AdbReporter.saveFallbackIp(this, ip)
+            EventLog.add(this, EventLog.ADB, if (ip.isEmpty()) "Dashbord-IP (reserve) fjernet" else "Dashbord-IP (reserve) satt til $ip")
+            ipEdit.clearFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(ipEdit.windowToken, 0)
+            Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show()
+            refresh()
+        }
         val edit = findViewById<EditText>(R.id.editDashboardUrl)
         edit.setText(AdbReporter.url(this))
         findViewById<Button>(R.id.btnSaveDashboardUrl).setOnClickListener {
@@ -317,7 +332,13 @@ class MainActivity : Activity() {
             edit.clearFocus()
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(edit.windowToken, 0)
             if (u.isNotEmpty()) {
-                findViewById<TextView>(R.id.dashboardStatus).text = "Saved – reporting…"
+                findViewById<TextView>(R.id.dashboardIpStatus).text = run {
+            val host = try { Uri.parse(AdbReporter.url(this)).host } catch (_: Exception) { null }
+            val learned = host?.let { AdbReporter.learnedIp(this, it) }
+            (if (AdbReporter.fallbackIp(this).isEmpty()) "Fallback IP: not set" else "Fallback IP: ${AdbReporter.fallbackIp(this)}") +
+                "\nLearned IP: " + (learned ?: "none yet (learned after the next successful report)")
+        }
+        findViewById<TextView>(R.id.dashboardStatus).text = "Saved – reporting…"
                 AdbReporter.maybeReport(this, force = true)
                 edit.postDelayed({ refresh() }, 9000)
             } else refresh()

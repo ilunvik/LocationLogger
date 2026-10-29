@@ -219,25 +219,176 @@ object AdbReporter {
             put("model", android.os.Build.MODEL ?: JSONObject.NULL)
             put("tcp5555", tcp)
         }.toString()
-        run {
-            val shown = (if (wifi == "off") "wireless debugging off" else "$ip:${port ?: "?"}") + (if (tcp) " · tcp 5555" else "")
-            try {
-                val c = URL(u).openConnection() as HttpURLConnection
-                c.requestMethod = "POST"
-                c.connectTimeout = 10_000; c.readTimeout = 10_000
-                c.doOutput = true
-                c.setRequestProperty("Content-Type", "application/json")
-                c.outputStream.use { it.write(body.toByteArray()) }
-                val code = c.responseCode
-                c.disconnect()
-                if (code in 200..299) {
+        val shown = (if (wifi == "off") "wireless debugging off" else "$ip:${port ?: "?"}") + (if (tcp) " · tcp 5555" else "")
+        try {
+            when (val r = try { post(ctx, u, body) } catch (e: Exception) { PostResult.Failed(e) }) {
+                is PostResult.Ok -> {
                     p.edit().putString(KEY_SIG, sig).putLong(KEY_AT, System.currentTimeMillis()).apply()
-                    setStatus(ctx, "Last reported: $shown at ${hhmm()}")
-                } else setStatus(ctx, "${hhmm()}: dashboard answered HTTP $code ($shown not reported)")
+                    setStatus(ctx, "Last reported: $shown at ${hhmm()}" + (r.via?.let { " (via fallback IP $it)" } ?: ""))
+                }
+                is PostResult.Http -> setStatus(ctx, "${hhmm()}: dashboard answered HTTP ${r.code} ($shown not reported)")
+                is PostResult.Failed -> {
+                    setStatus(ctx, "${hhmm()}: could not reach the dashboard (${r.e.javaClass.simpleName})")
+                    EventLog.error(ctx, "Dashbord-rapport feilet" + vpnHint(ctx), r.e)
+                }
+            }
+        } finally { done(ctx) }
+    }
+
+    // ---------- POST with DNS retry and fallback IP (1.26) ----------
+
+    const val KEY_FALLBACK_IP = "dashboard_fallback_ip"
+    private const val KEY_LEARNED_IP = "dashboard_learned_ip"     // "host|ip" of the last successful lookup
+    /** Waits before the 2nd, 3rd and 4th attempt when the host name cannot be resolved. */
+    private val DNS_BACKOFF_MS = longArrayOf(5_000L, 15_000L, 45_000L)
+
+    fun fallbackIp(ctx: Context): String = LogStore.prefs(ctx).getString(KEY_FALLBACK_IP, "")?.trim() ?: ""
+
+    fun saveFallbackIp(ctx: Context, ip: String) {
+        LogStore.prefs(ctx).edit().putString(KEY_FALLBACK_IP, ip.trim()).apply()
+    }
+
+    /** Accepts an IPv4 or IPv6 literal only (never a host name, so no DNS lookup is needed). */
+    fun isIpLiteral(s: String): Boolean {
+        val t = s.trim().removePrefix("[").removeSuffix("]")
+        if (Regex("""^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$""").matches(t))
+            return t.split('.').all { it.toInt() in 0..255 }
+        return t.contains(':') && Regex("""^[0-9a-fA-F:.]+$""").matches(t)
+    }
+
+    /** The IP the dashboard host last resolved to (null if none or for another host). */
+    fun learnedIp(ctx: Context, host: String? = null): String? {
+        val v = LogStore.prefs(ctx).getString(KEY_LEARNED_IP, null) ?: return null
+        val (h, ip) = v.split('|', limit = 2).let { if (it.size == 2) it[0] to it[1] else return null }
+        return if (host == null || h.equals(host, ignoreCase = true)) ip else null
+    }
+
+    private fun learn(ctx: Context, host: String) {
+        if (isIpLiteral(host)) return
+        try {
+            val ip = java.net.InetAddress.getAllByName(host).let { a -> a.firstOrNull { it is Inet4Address } ?: a.firstOrNull() }
+                ?.hostAddress ?: return
+            if (learnedIp(ctx, host) != ip) {
+                LogStore.prefs(ctx).edit().putString(KEY_LEARNED_IP, "$host|$ip").apply()
+                EventLog.add(ctx, EventLog.ADB, "Lærte dashbord-IP: $host → $ip (brukes som reserve)")
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun vpnHint(ctx: Context) = if (vpnInterfaces(ctx).isEmpty()) " (ingen VPN aktiv – er Tailscale på?)" else ""
+
+    private sealed class PostResult {
+        class Ok(val via: String?) : PostResult()
+        class Http(val code: Int) : PostResult()
+        class Failed(val e: Exception) : PostResult()
+    }
+
+    private fun isDnsFailure(e: Throwable?): Boolean {
+        var c = e
+        while (c != null) { if (c is java.net.UnknownHostException) return true; c = c.cause }
+        return false
+    }
+
+    /**
+     * POSTs [body] to [u]. If the host name cannot be resolved, tries the fallback IPs (the user's
+     * setting, then the learned IP) – connecting to the IP but keeping TLS SNI and certificate/host
+     * name verification for the original host – and retries with backoff ([DNS_BACKOFF_MS]).
+     * Runs on [io]; every attempt is written to the Log tab.
+     */
+    private fun post(ctx: Context, u: String, body: String): PostResult {
+        val url = URL(u)
+        val host = url.host
+        var last: Exception? = null
+        for (attempt in 0..DNS_BACKOFF_MS.size) {
+            if (attempt > 0) {
+                val wait = DNS_BACKOFF_MS[attempt - 1]
+                EventLog.add(ctx, EventLog.ADB, "Venter ${wait / 1000} s før nytt forsøk (${attempt + 1}/${DNS_BACKOFF_MS.size + 1})")
+                try { Thread.sleep(wait) } catch (_: InterruptedException) { break }
+            }
+            val n = attempt + 1
+            try {
+                val code = postDirect(url, body)
+                EventLog.add(ctx, EventLog.ADB, "Forsøk $n via vertsnavn $host: HTTP $code")
+                if (code in 200..299) { learn(ctx, host); return PostResult.Ok(null) }
+                return PostResult.Http(code)
             } catch (e: Exception) {
-                setStatus(ctx, "${hhmm()}: could not reach the dashboard (${e.javaClass.simpleName})")
-                EventLog.error(ctx, "Dashbord-rapport feilet", e)
-            } finally { done(ctx) }
+                last = e
+                if (!isDnsFailure(e)) {
+                    EventLog.add(ctx, EventLog.ADB, "Forsøk $n via vertsnavn $host feilet: ${e.javaClass.simpleName}")
+                    return PostResult.Failed(e)
+                }
+                EventLog.add(ctx, EventLog.ADB, "Forsøk $n: kunne ikke slå opp $host (DNS)${vpnHint(ctx)}")
+            }
+            val ips = linkedMapOf<String, String>()
+            fallbackIp(ctx).takeIf { isIpLiteral(it) }?.let { ips[it] = "innstilling" }
+            learnedIp(ctx, host)?.let { if (it !in ips) ips[it] = "lært" }
+            if (attempt == 0 && ips.isEmpty())
+                EventLog.add(ctx, EventLog.ADB, "Ingen reserve-IP (sett Dashbord-IP (reserve), eller vent til IP-en læres)")
+            for ((ip, src) in ips) {
+                try {
+                    val code = postViaIp(url, ip, body)
+                    EventLog.add(ctx, EventLog.ADB, "Forsøk $n via reserve-IP $ip ($src), TLS for $host: HTTP $code")
+                    if (code in 200..299) return PostResult.Ok(ip)
+                    return PostResult.Http(code)
+                } catch (e: Exception) {
+                    last = e
+                    EventLog.add(ctx, EventLog.ADB, "Forsøk $n via reserve-IP $ip ($src) feilet: ${e.javaClass.simpleName}" +
+                        (e.message?.let { " – $it" } ?: ""))
+                }
+            }
+        }
+        return PostResult.Failed(last ?: java.io.IOException("unknown"))
+    }
+
+    private fun postDirect(url: URL, body: String): Int {
+        val c = url.openConnection() as HttpURLConnection
+        try {
+            c.requestMethod = "POST"
+            c.connectTimeout = 10_000; c.readTimeout = 10_000
+            c.doOutput = true
+            c.setRequestProperty("Content-Type", "application/json")
+            c.outputStream.use { it.write(body.toByteArray()) }
+            return c.responseCode
+        } finally { c.disconnect() }
+    }
+
+    /**
+     * Minimal HTTP/1.1 POST to [ip], with the Host header, TLS SNI and certificate + host name
+     * verification all for the URL's real host (so HTTPS stays valid without DNS).
+     */
+    private fun postViaIp(url: URL, ip: String, body: String): Int {
+        val https = url.protocol.equals("https", ignoreCase = true)
+        val port = if (url.port > 0) url.port else url.defaultPort
+        val host = url.host
+        val raw = java.net.Socket()
+        raw.connect(java.net.InetSocketAddress(java.net.InetAddress.getByName(ip.removePrefix("[").removeSuffix("]")), port), 10_000)
+        raw.soTimeout = 10_000
+        val sock: java.net.Socket = if (https) {
+            val f = javax.net.ssl.SSLContext.getDefault().socketFactory
+            val ssl = f.createSocket(raw, host, port, true) as javax.net.ssl.SSLSocket
+            try {
+                val params = ssl.sslParameters
+                params.serverNames = listOf(javax.net.ssl.SNIHostName(host))
+                ssl.sslParameters = params
+            } catch (_: Exception) {}
+            ssl.startHandshake() // validates the certificate chain against the system trust store
+            if (!javax.net.ssl.HttpsURLConnection.getDefaultHostnameVerifier().verify(host, ssl.session)) {
+                ssl.close()
+                throw javax.net.ssl.SSLPeerUnverifiedException("certificate does not match $host")
+            }
+            ssl
+        } else raw
+        sock.use { s ->
+            val bytes = body.toByteArray()
+            val path = (url.path.ifEmpty { "/" }) + (url.query?.let { "?$it" } ?: "")
+            val hostHeader = if (url.port > 0 && url.port != url.defaultPort) "$host:${url.port}" else host
+            val head = "POST $path HTTP/1.1\r\nHost: $hostHeader\r\nContent-Type: application/json\r\n" +
+                "Content-Length: ${bytes.size}\r\nConnection: close\r\n\r\n"
+            val out = s.getOutputStream()
+            out.write(head.toByteArray(Charsets.US_ASCII)); out.write(bytes); out.flush()
+            val status = s.getInputStream().bufferedReader(Charsets.ISO_8859_1).readLine()
+                ?: throw java.io.IOException("no response")
+            return status.split(' ').getOrNull(1)?.toIntOrNull() ?: throw java.io.IOException("bad status line")
         }
     }
 

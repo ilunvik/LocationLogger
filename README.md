@@ -123,7 +123,13 @@ network change (Wi-Fi/mobile switch, network lost/available, new IP), after boot
 logging service starts, and right after it has switched wireless debugging back on (once the new port is
 found via NSD); otherwise only when the value changed, or about once an hour as a heartbeat. The dashboard
 host can react to each report (e.g. switch adbd to TCP 5555) instead of polling (`adbWifi: "off"` and `port: null`
-when wireless debugging is off). Settings shows "Last reported: ip:port at HH:MM". **Keep wireless debugging on** (default on): if
+when wireless debugging is off). Settings shows "Last reported: ip:port at HH:MM". If the dashboard's host name cannot be resolved
+(DNS failure, e.g. right after a network change or while the VPN is down), the app (1.26+) retries after
+5 s, 15 s and 45 s, and on each attempt also tries a fallback IP: **Dashbord-IP (reserve)** in Settings
+(optional, an IP literal), then the IP the host last resolved to after a successful report (learned
+automatically). Over HTTPS the fallback connects to the IP but keeps TLS SNI, the certificate check and the
+host name check for the original host, so the connection is still verified. Every attempt and the path
+that worked is shown in the Log tab (`ADB`). **Keep wireless debugging on** (default on): if
 the app has `WRITE_SECURE_SETTINGS` (granted via `adb shell pm grant no.grokbot.stedslogger
 android.permission.WRITE_SECURE_SETTINGS`) and wireless debugging is off while the phone is on Wi-Fi,
 it sets `Settings.Global adb_wifi_enabled = 1` – the only setting it writes for this. Nothing else is

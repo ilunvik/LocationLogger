@@ -391,6 +391,45 @@
                         android:textIsSelectable="true"
                         android:textSize="13sp" />
                 </LinearLayout>
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Dashbord-IP (reserve)"
+                    android:textStyle="bold" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Used when the dashboard's host name cannot be resolved (DNS). HTTPS is still verified for the host name. Optional: the IP the host last resolved to is learned automatically."
+                    android:textColor="#757575"
+                    android:textSize="12sp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+                    <EditText
+                        android:id="@+id/editDashboardIp"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:hint="IP address (empty = only learned IP)"
+                        android:importantForAutofill="no"
+                        android:inputType="textUri"
+                        android:singleLine="true"
+                        android:textSize="14sp" />
+                    <Button
+                        android:id="@+id/btnSaveDashboardIp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Save" />
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/dashboardIpStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textIsSelectable="true"
+                    android:textSize="13sp" />
                 <CheckBox
                     android:id="@+id/checkKeepAdbWifi"
                     android:layout_width="match_parent"
