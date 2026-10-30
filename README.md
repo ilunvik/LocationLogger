@@ -29,9 +29,14 @@ falling back to the geocoder's full address line when there is no street name.
 
 - Runs as a **foreground service** (`foregroundServiceType="location"`) with a persistent notification,
   so it keeps working with the screen off and the app in the background.
+  On Android 14+ a `location` foreground service may only be started while the app is in the
+  foreground; when the service is (re)started from the background (wake-up alarm, boot, app update)
+  it falls back to type `specialUse` (1.28.1+) and still gets locations through the background
+  location permission ("Allow all the time"). If going foreground fails anyway, the wake-up alarm is
+  kept so the next alarm retries instead of logging stopping for good.
 - **Restarts after reboot** (and after an app update) if it was running.
-- No Google Play Services dependency: plain `LocationManager` + `android.location.Geocoder`
-  (async Geocoder API on Android 13+).
+- Uses Google Play services' fused location when available (1.28+), otherwise plain
+  `LocationManager`; reverse geocoding with `android.location.Geocoder` (async API on Android 13+).
 - Kotlin, framework APIs only (no AndroidX). minSdk 26 (Android 8.0), targetSdk 34.
 
 ## Where the data is saved

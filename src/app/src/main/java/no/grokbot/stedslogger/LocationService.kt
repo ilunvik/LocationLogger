@@ -82,6 +82,8 @@ class LocationService : Service() {
         private const val CURRENT_MAX_AGE_MS = 30 * 1000L
         private const val CACHED_WAIT_MS = 3 * 1000L
 
+        /** Retry delay when the service could not go foreground (the alarm starts it again). */
+        private const val RETRY_START_MS = 5 * 60_000L
         const val SRC_REUSED = "gjenbrukt"
         const val SRC_NETWORK = "nettverk"
         const val SRC_GPS = "GPS"
@@ -244,6 +246,10 @@ class LocationService : Service() {
             goForeground(statusText())
         } catch (e: Exception) {
             EventLog.error(this, "startForeground feilet", e)
+            // Keep the schedule alive: the next alarm tries again instead of logging stopping for good
+            if (LogStore.prefs(this).getBoolean(LogStore.KEY_RUNNING, false)) {
+                try { CheckAlarm.schedule(this, System.currentTimeMillis() + RETRY_START_MS) } catch (_: Exception) {}
+            }
             stopSelf()
             return START_NOT_STICKY
         }
@@ -369,10 +375,30 @@ class LocationService : Service() {
             .build()
     }
 
+    /** Which foreground-service type the service runs as now ("location", "specialUse" or "" before Q). */
+    private var fgsType = ""
+
     private fun goForeground(text: String) {
         val n = buildNotification(text)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= 34) {
+            // Android 14+: a "location" foreground service may only be started while the app is in
+            // the foreground (while-in-use rule). Started from the alarm, boot or an app update it
+            // throws SecurityException. Fall back to "specialUse": the service keeps running, and
+            // location still works because the app has background location ("Allow all the time").
+            try {
+                startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                if (fgsType != "location") Log.i(TAG, "foreground service type: location")
+                fgsType = "location"
+                return
+            } catch (e: SecurityException) {
+                if (fgsType != "specialUse") EventLog.add(this, EventLog.SERVICE,
+                    "Startet fra bakgrunnen: kjører som forgrunnstjeneste av type specialUse (Android 14+ tillater ikke type location her; bakgrunnsposisjon brukes)")
+            }
+            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            fgsType = "specialUse"
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            fgsType = "location"
         } else {
             startForeground(NOTIF_ID, n)
         }
