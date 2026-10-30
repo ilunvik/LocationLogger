@@ -630,6 +630,7 @@ class MainActivity : Activity() {
         settingsStatus.text = (if (running) "● Running – checking every $interval min" else "○ Stopped – interval $interval min") +
             "\n" + gps + "\n" + perm +
             (if (isIgnoringBattery()) "\nBattery optimization: off" else "\nBattery optimization: on (may stop logging)") +
+            "\nGPS used today: ${LocationService.gpsUsesToday(this)}× (location: cached fix → Wi-Fi/cell → GPS only if needed)" +
             (if (CheckAlarm.canExact(this)) "\nWake-up alarms: exact" else "\nWake-up alarms: inexact (exact alarms not allowed; checks may be late with the screen off)")
         findViewById<TextView>(R.id.keepAdbWifiStatus).text =
             (if (GpsToggle.hasPermission(this)) "Permission WRITE_SECURE_SETTINGS: granted"

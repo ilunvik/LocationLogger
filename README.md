@@ -70,8 +70,8 @@ Back on the Settings or Log tab returns to Visits; the app reopens on the tab yo
   off again afterwards only if it was off. For each check:
   1. Read whether system location is currently on (`LocationManager.isLocationEnabled()`).
   2. If it is off, switch it on (`Settings.Secure.LOCATION_MODE = 3`, with fallbacks) and wait up to 6 s.
-  3. Get a single location fix (GPS first, then network; 60 s timeout each), then reverse-geocode and log.
-  4. Right after the fix completes or times out, switch location off again **only if it was off before
+  3. Get a location with the tiered strategy below (1.28+), then reverse-geocode and log.
+  4. When the check is done (or has timed out), switch location off again **only if it was off before
      the check**. If you had it on, it is left on.
 
   This needs the `WRITE_SECURE_SETTINGS` permission (see below). Without it, the app just requests a
@@ -288,9 +288,23 @@ adb install -r app-release.apk
   alarm is cancelled when logging stops and set again when the service restarts (boot, update). Some
   phones ignore an app's wake lock (Samsung), which is why a Handler timer alone stalled in deep sleep;
   a short timed wake lock is still held during each check. GPS itself is only used during each check.
-- Each check asks GPS, network and (Android 12+) the fused provider at the same time; the first fix
-  with an accuracy of 100 m or better wins, otherwise the most accurate one within 60 s. Without a
-  new fix, a recent last-known or passively received fix (not older than the interval, at least 10
+- **Tiered location (1.28+, saves battery).** Uses Google Play services' fused location if available,
+  else Android's `LocationManager`. Each check:
+  1. **Reuse (`gjenbrukt`)** – the freshest cached fix (fused last location, last-known per provider, and
+     fixes other apps got, collected by passive listeners) if it is at most 5 min old, ±100 m or better,
+     and newer than the fix used at the previous check (a fix is never used twice, so two checks cannot
+     confirm a visit with the same stale fix). Not used for *Check now*.
+  2. **Network (`nettverk`)** – one balanced-power fix (Wi-Fi/cell), 20 s timeout, accepted at ±100 m or better.
+  3. **GPS** – one high-accuracy fix only if step 2 gave nothing or was too coarse, with a hard 45 s
+     timeout (the request is cancelled, so GPS is never left on).
+  A fix coarser than ±30 m that would change the place (a candidate or a new visit instead of "still at
+  the current visit") is double-checked with GPS before it is applied, so stop detection and the
+  Places matching are not fooled by a Wi-Fi fix on a neighbour's address. The thresholds are constants
+  in `LocationService`. Every fix is logged in the Log tab (`POSISJON`) with its source, accuracy and
+  age; Settings shows how many times GPS was used today. The service no longer holds a permanent wake
+  lock (the wake-up alarm drives the checks); each check and each dashboard report hold a short wake
+  lock with a timeout, released when done.
+  Without any new fix, a recent cached fix not used before (not older than the interval, at least 10
   min) is used and marked "last known fix" in *Last check*. Otherwise *Last check* shows why, per
   provider (no fix / no answer in 60 s / permission denied), and hints when location is allowed only
   while the app is in use. Short intervals use more battery.

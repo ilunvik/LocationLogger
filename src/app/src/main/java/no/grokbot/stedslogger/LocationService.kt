@@ -23,6 +23,16 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.location.CurrentLocationRequest
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -51,6 +61,41 @@ class LocationService : Service() {
         private const val GPS_ON_WAIT_MS = 6 * 1000L
         private const val FIX_TIMEOUT_MS = 60 * 1000L
         private const val MAX_LAST_KNOWN_AGE_MS = 10 * 60 * 1000L
+
+        // ---- Tiered location (1.28): reuse a cached fix, else Wi-Fi/cell, GPS only when needed ----
+        /** Step 1: a cached fix (any app's) is reused if it is at most this old ... */
+        const val REUSE_MAX_AGE_MS = 5 * 60 * 1000L
+        /** ... and at least this accurate. */
+        const val REUSE_MAX_ACC_M = 100f
+        /** Step 2: single balanced-power (Wi-Fi/cell) fix; accepted if at least this accurate. */
+        const val BALANCED_MAX_ACC_M = 100f
+        const val BALANCED_TIMEOUT_MS = 20 * 1000L
+        /** Step 3: high-accuracy (GPS) fix, never longer than this. */
+        const val GPS_TIMEOUT_MS = 45 * 1000L
+        /**
+         * A fix coarser than this that would change the place (leave the current visit / new candidate)
+         * is double-checked with GPS before it is used, so a Wi-Fi fix that lands on a neighbour's
+         * address does not end a visit.
+         */
+        const val PRECISE_ACC_M = 30f
+        /** A fused "current location" may be served from a cache this fresh. */
+        private const val CURRENT_MAX_AGE_MS = 30 * 1000L
+        private const val CACHED_WAIT_MS = 3 * 1000L
+
+        const val SRC_REUSED = "gjenbrukt"
+        const val SRC_NETWORK = "nettverk"
+        const val SRC_GPS = "GPS"
+
+        private const val KEY_LAST_USED_FIX_TIME = "last_used_fix_time"
+        const val KEY_GPS_DAY = "gps_use_day"
+        const val KEY_GPS_COUNT = "gps_use_count"
+
+        /** GPS (high-accuracy) requests made today, for Settings. */
+        fun gpsUsesToday(ctx: Context): Int {
+            val p = LogStore.prefs(ctx)
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())
+            return if (p.getString(KEY_GPS_DAY, null) == today) p.getInt(KEY_GPS_COUNT, 0) else 0
+        }
 
         fun start(ctx: Context, action: String = ACTION_START) {
             val i = Intent(ctx, LocationService::class.java).setAction(action)
@@ -213,7 +258,6 @@ class LocationService : Service() {
             running = true
             instance = this
             executor.execute { try { LogStore.deleteOldTextLogsOnce(this) } catch (e: Exception) { Log.w(TAG, "text log cleanup failed", e) } }
-            acquireWakeLock()
             startPassive()
             startNetWatch()
             try { ShizukuWatch.init(this) } catch (e: Exception) { EventLog.error(this, "Shizuku-lytter feilet", e) }
@@ -227,7 +271,7 @@ class LocationService : Service() {
         } else if (intent?.action == ACTION_CHECK_NOW) {
             EventLog.add(this, EventLog.CHECK, "Manuell sjekk (Sjekk nå)")
             holdCheckWake()
-            checkLocation()
+            checkLocation(manual = true)
         } else if (intent?.action == ACTION_ALARM) {
             onAlarm()
         }
@@ -273,14 +317,8 @@ class LocationService : Service() {
         super.onDestroy()
     }
 
-    private fun acquireWakeLock() {
-        // Partial wake lock (CPU only, not GPS) so the check timer keeps running with the screen off (Doze).
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LocationLogger::timer").apply {
-            setReferenceCounted(false)
-            acquire()
-        }
-    }
+    // 1.28: no permanent wake lock any more. The wake-up alarm (CheckAlarm) drives the checks in Doze,
+    // and each check holds a short wake lock with a timeout (released as soon as the check ends).
 
     // Short wake lock with a timeout for one check (fix + geocoding); harmless if the phone ignores it.
     private var checkWake: PowerManager.WakeLock? = null
@@ -363,6 +401,11 @@ class LocationService : Service() {
         pendingTimeout = null
         pendingCancels.forEach { try { it.cancel() } catch (_: Exception) {} }
         pendingCancels.clear()
+        fusedCancels.forEach { try { it.cancel() } catch (_: Exception) {} }
+        fusedCancels.clear()
+        stepTimeouts.forEach { handler.removeCallbacks(it) }
+        stepTimeouts.clear()
+        fixToken++
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
         pendingListeners.forEach { l -> try { lm.removeUpdates(l) } catch (_: Exception) {} }
         pendingListeners.clear()
@@ -415,6 +458,21 @@ class LocationService : Service() {
             lm.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 60_000L, 0f, l, Looper.getMainLooper())
             passiveListener = l
         } catch (e: Exception) { EventLog.error(this, "Passiv posisjonslytter feilet", e) }
+        // Fused passive request (Play services): fixes Google / other apps get anyway, at no extra cost
+        fusedClient()?.let { fc ->
+            val cb = object : LocationCallback() {
+                override fun onLocationResult(r: LocationResult) { r.lastLocation?.let { fusedPassiveLast = it } }
+            }
+            try {
+                fc.requestLocationUpdates(
+                    LocationRequest.Builder(Priority.PRIORITY_PASSIVE, 60_000L).setMinUpdateIntervalMillis(30_000L).build(),
+                    cb, Looper.getMainLooper())
+                fusedPassiveCb = cb
+            } catch (e: Exception) { EventLog.error(this, "Passiv fused-lytter feilet", e) }
+        }
+        EventLog.add(this, EventLog.CHECK, "Posisjonskilde: " +
+            (if (fusedClient() != null) "Google Play-tjenester (fused)" else "Android LocationManager (uten Play-tjenester)") +
+            " · passiv lytter på")
     }
 
     private fun stopPassive() {
@@ -422,12 +480,15 @@ class LocationService : Service() {
             try { (getSystemService(LOCATION_SERVICE) as LocationManager).removeUpdates(l) } catch (_: Exception) {}
         }
         passiveListener = null
+        fusedPassiveCb?.let { cb -> try { fused?.removeLocationUpdates(cb) } catch (_: Exception) {} }
+        fusedPassiveCb = null
     }
 
-    private fun checkLocation() {
+    private fun checkLocation(manual: Boolean = false) {
         if (busy) { EventLog.add(this, EventLog.CHECK, "Hoppet over: forrige sjekk pågår fortsatt"); return }
         if (!hasLocationPermission()) { EventLog.error(this, "Sjekk hoppet over: mangler posisjonstillatelse"); return }
         busy = true
+        manualCheck = manual
         holdCheckWake()
         toggleNote = null
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
@@ -464,14 +525,207 @@ class LocationService : Service() {
         }
     }
 
+    // ---------- tiered location (1.28) ----------
+
+    private var fused: FusedLocationProviderClient? = null
+    private var fusedChecked = false
+    private var fusedPassiveCb: LocationCallback? = null
+    @Volatile private var fusedPassiveLast: Location? = null
+    private val fusedCancels = mutableListOf<CancellationTokenSource>()
+    private val stepTimeouts = mutableListOf<Runnable>()
+    /** Bumped by [cancelPending]; callbacks from an older check are ignored. */
+    private var fixToken = 0
+    private var manualCheck = false
+    private var lastSource: String? = null
+
+    /** Fused location client if Google Play services is available, else null (LocationManager is used). */
+    private fun fusedClient(): FusedLocationProviderClient? {
+        if (!fusedChecked) {
+            fusedChecked = true
+            fused = try {
+                if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this) == ConnectionResult.SUCCESS)
+                    LocationServices.getFusedLocationProviderClient(this) else null
+            } catch (_: Throwable) { null }
+        }
+        return fused
+    }
+
+    private fun hasFine() = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    private fun acc(l: Location) = if (l.hasAccuracy()) l.accuracy else Float.MAX_VALUE
+
+    private fun lastUsedFixTime() = LogStore.prefs(this).getLong(KEY_LAST_USED_FIX_TIME, 0L)
+
+    /** A fix is only used once: a cached fix must be newer than the one used at the previous check. */
+    private fun isNew(l: Location) = l.time > lastUsedFixTime()
+
+    private fun markUsed(l: Location) {
+        LogStore.prefs(this).edit().putLong(KEY_LAST_USED_FIX_TIME, maxOf(l.time, lastUsedFixTime())).apply()
+    }
+
+    private fun countGpsUse() {
+        val p = LogStore.prefs(this)
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())
+        val n = (if (p.getString(KEY_GPS_DAY, null) == today) p.getInt(KEY_GPS_COUNT, 0) else 0) + 1
+        p.edit().putString(KEY_GPS_DAY, today).putInt(KEY_GPS_COUNT, n).apply()
+        EventLog.add(this, EventLog.CHECK, "GPS slått på for én posisjon (maks ${GPS_TIMEOUT_MS / 1000} s) – $n. gang i dag")
+    }
+
     private fun startFix(lm: LocationManager) {
         if (!running) { busy = false; gpsOffAfterFix(); releaseCheckWake(); return }
-        val providers = availableProviders(lm)
-        if (providers.isEmpty()) {
+        if (availableProviders(lm).isEmpty() && fusedClient() == null) {
             endCheck(toggleNote ?: "Location (GPS) is turned off")
             return
         }
-        requestFix(lm, providers, 0)
+        val token = fixToken
+        // Step 1: reuse a fresh, accurate cached fix (free)
+        collectCached(lm) { cached ->
+            if (token != fixToken || !running) return@collectCached
+            val reuse = cached.filter { ageMs(it) in 0..REUSE_MAX_AGE_MS && acc(it) <= REUSE_MAX_ACC_M && isNew(it) }
+                .minByOrNull { ageMs(it) }
+            if (reuse != null && !manualCheck) { finishFix(reuse, SRC_REUSED); return@collectCached }
+            if (reuse == null) EventLog.add(this, EventLog.CHECK, "Ingen fersk lagret posisjon (≤ ${REUSE_MAX_AGE_MS / 60000} min, ±${REUSE_MAX_ACC_M.toInt()} m) – spør nettverk (Wi-Fi/mobil)")
+            // Step 2: one balanced-power fix (Wi-Fi / cell)
+            requestCurrent(highAccuracy = false) { net ->
+                if (token != fixToken || !running) return@requestCurrent
+                if (net != null && acc(net) <= BALANCED_MAX_ACC_M && isNew(net)) { finishFix(net, SRC_NETWORK); return@requestCurrent }
+                val why = if (net == null) "ingen nettverksposisjon" else "nettverksposisjon for unøyaktig (±${Math.round(acc(net))} m)"
+                if (!hasFine()) { fallback(lm, cached + listOfNotNull(net), "$why; GPS ikke tillatt (bare omtrentlig posisjon)"); return@requestCurrent }
+                EventLog.add(this, EventLog.CHECK, "$why – prøver GPS")
+                // Step 3: GPS, with a hard timeout
+                requestCurrent(highAccuracy = true) { gps ->
+                    if (token != fixToken || !running) return@requestCurrent
+                    val best = listOfNotNull(gps, net).filter { isNew(it) }.minByOrNull { acc(it) }
+                    when {
+                        best != null && best === gps -> finishFix(gps, SRC_GPS)
+                        best != null -> finishFix(best, SRC_NETWORK)
+                        else -> fallback(lm, cached, "$why; ingen GPS-posisjon innen ${GPS_TIMEOUT_MS / 1000} s")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun finishFix(loc: Location, source: String) {
+        cancelPending()
+        onLocation(loc, source) // system location is restored (gpsOffAfterFix) once the check is done
+    }
+
+    /** No good new fix: a recent cached one not used before (as before 1.28), else the check fails. */
+    private fun fallback(lm: LocationManager, cached: List<Location>, detail: String) {
+        cancelPending()
+        val maxAge = maxOf(intervalMs(), MAX_LAST_KNOWN_AGE_MS)
+        val all = cached + availableProviders(lm).plus(LocationManager.PASSIVE_PROVIDER).mapNotNull {
+            try { lm.getLastKnownLocation(it) } catch (_: Exception) { null }
+        } + listOfNotNull(passiveLast, fusedPassiveLast)
+        val last = all.filter { ageMs(it) in 0..maxAge && isNew(it) }.minByOrNull { ageMs(it) }
+        if (last != null) {
+            toggleNote = listOfNotNull(toggleNote,
+                "last known fix (${last.provider}, ${ageMs(last) / 60_000} min old); no new fix: $detail").joinToString(" · ")
+            onLocation(last, SRC_REUSED)
+        } else {
+            val why = if (!hasBackgroundPermission())
+                " – location is allowed only while the app is in use; set it to \"Allow all the time\"" else ""
+            endCheck("No location found ($detail)$why")
+        }
+    }
+
+    /** All cached fixes: fused last location, LocationManager last-known per provider, passive listeners. */
+    @SuppressLint("MissingPermission")
+    private fun collectCached(lm: LocationManager, done: (List<Location>) -> Unit) {
+        val local = (availableProviders(lm) + LocationManager.PASSIVE_PROVIDER).distinct().mapNotNull {
+            try { lm.getLastKnownLocation(it) } catch (_: Exception) { null }
+        } + listOfNotNull(passiveLast, fusedPassiveLast)
+        val fc = fusedClient()
+        if (fc == null) { done(local); return }
+        var finished = false
+        val t = Runnable { if (!finished) { finished = true; done(local) } }
+        stepTimeouts += t
+        handler.postDelayed(t, CACHED_WAIT_MS)
+        try {
+            fc.lastLocation.addOnCompleteListener { task ->
+                handler.post {
+                    if (finished) return@post
+                    finished = true
+                    handler.removeCallbacks(t)
+                    val l = if (task.isSuccessful) task.result else null
+                    done(local + listOfNotNull(l))
+                }
+            }
+        } catch (e: Exception) { handler.removeCallbacks(t); finished = true; done(local) }
+    }
+
+    /**
+     * One current fix: balanced power (Wi-Fi/cell) or high accuracy (GPS), via fused if available,
+     * else LocationManager NETWORK / GPS. Always ends within the step's timeout (null = no fix);
+     * the request is cancelled then, so GPS is never left on.
+     */
+    @SuppressLint("MissingPermission")
+    private fun requestCurrent(highAccuracy: Boolean, done: (Location?) -> Unit) {
+        val timeout = if (highAccuracy) GPS_TIMEOUT_MS else BALANCED_TIMEOUT_MS
+        if (highAccuracy) { countGpsUse(); holdCheckWake() }
+        var finished = false
+        val cancels = mutableListOf<() -> Unit>()
+        fun finish(l: Location?) {
+            if (finished) return
+            finished = true
+            cancels.forEach { try { it() } catch (_: Exception) {} }
+            done(l)
+        }
+        val t = Runnable { finish(null) }
+        stepTimeouts += t
+        handler.postDelayed(t, timeout + 2_000L)
+        val fc = fusedClient()
+        try {
+            if (fc != null) {
+                val cts = CancellationTokenSource()
+                fusedCancels += cts
+                cancels += { cts.cancel() }
+                val req = CurrentLocationRequest.Builder()
+                    .setPriority(if (highAccuracy) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY)
+                    .setDurationMillis(timeout)
+                    .setMaxUpdateAgeMillis(CURRENT_MAX_AGE_MS)
+                    .build()
+                fc.getCurrentLocation(req, cts.token).addOnCompleteListener { task ->
+                    handler.post {
+                        if (!task.isSuccessful && task.exception != null)
+                            EventLog.error(this, "Fused-posisjon feilet (${if (highAccuracy) "GPS" else "nettverk"})", task.exception)
+                        finish(if (task.isSuccessful) task.result else null)
+                    }
+                }
+                return
+            }
+            val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+            val provider = when {
+                highAccuracy && enabled(lm, LocationManager.GPS_PROVIDER) && hasFine() -> LocationManager.GPS_PROVIDER
+                enabled(lm, LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && enabled(lm, LocationManager.FUSED_PROVIDER) -> LocationManager.FUSED_PROVIDER
+                else -> null
+            }
+            if (provider == null || (highAccuracy && provider != LocationManager.GPS_PROVIDER)) { finish(null); return }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val cancel = CancellationSignal()
+                pendingCancels += cancel
+                cancels += { cancel.cancel() }
+                lm.getCurrentLocation(provider, cancel, mainExecutor) { loc -> handler.post { finish(loc) } }
+            } else {
+                val listener = object : LocationListener {
+                    override fun onLocationChanged(location: Location) { finish(location) }
+                    @Deprecated("Deprecated in Java")
+                    override fun onStatusChanged(p: String?, s: Int, e: android.os.Bundle?) {}
+                    override fun onProviderEnabled(p: String) {}
+                    override fun onProviderDisabled(p: String) { finish(null) }
+                }
+                pendingListeners += listener
+                cancels += { lm.removeUpdates(listener) }
+                @Suppress("DEPRECATION")
+                lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+            }
+        } catch (e: SecurityException) {
+            EventLog.error(this, "Posisjonsforespørsel nektet", e); finish(null)
+        } catch (e: Exception) {
+            EventLog.error(this, "Posisjonsforespørsel feilet", e); finish(null)
+        }
     }
 
     /** Elapsed-realtime age of a fix in ms (works even if the fix's wall-clock time is off). */
@@ -479,96 +733,25 @@ class LocationService : Service() {
         (android.os.SystemClock.elapsedRealtimeNanos() - l.elapsedRealtimeNanos) / 1_000_000L
 
     /**
-     * Asks all enabled providers (GPS, network, fused) at the same time. The first fix with an
-     * accuracy of <= 100 m wins at once; otherwise the most accurate fix when all providers have
-     * answered or [FIX_TIMEOUT_MS] has passed. Without any fix, a recent last-known / passive fix
-     * (not older than the interval) is used and marked as such; else the real reason is shown.
+     * True if [loc] is coarse (> [PRECISE_ACC_M]), not from GPS, and its [place] differs from the current
+     * visit – i.e. it would start a candidate or a new visit, where precision matters.
      */
-    @SuppressLint("MissingPermission")
-    private fun requestFix(lm: LocationManager, providers: List<String>, @Suppress("UNUSED_PARAMETER") index: Int) {
-        val results = LinkedHashMap<String, Location?>()
-        val errors = LinkedHashMap<String, String>()
-        var done = false
-
-        fun finishWith(loc: Location?, note: String?) {
-            if (done) return
-            done = true
-            cancelPending()
-            if (note != null) toggleNote = listOfNotNull(toggleNote, note).joinToString(" · ")
-            if (loc != null) { gpsOffAfterFix(); onLocation(loc); return }
-            // No fresh fix: a recent last-known or passive fix
-            val maxAge = maxOf(intervalMs(), MAX_LAST_KNOWN_AGE_MS)
-            val candidates = (providers + LocationManager.PASSIVE_PROVIDER).mapNotNull {
-                try { lm.getLastKnownLocation(it) } catch (_: Exception) { null }
-            } + listOfNotNull(passiveLast)
-            val last = candidates.filter { ageMs(it) in 0..maxAge }.minByOrNull { ageMs(it) }
-            val detail = providers.joinToString(", ") { p ->
-                "$p: " + (errors[p] ?: if (results.containsKey(p)) "no fix" else "no answer in ${FIX_TIMEOUT_MS / 1000} s")
-            }
-            if (last != null) {
-                toggleNote = listOfNotNull(toggleNote,
-                    "last known fix (${last.provider}, ${ageMs(last) / 60_000} min old); no new fix: $detail").joinToString(" · ")
-                gpsOffAfterFix()
-                onLocation(last)
-            } else {
-                val why = if (!hasBackgroundPermission())
-                    " – location is allowed only while the app is in use; set it to \"Allow all the time\"" else ""
-                endCheck("No location found ($detail)$why")
-            }
-        }
-
-        fun onResult(p: String, loc: Location?) {
-            if (done) return
-            results[p] = loc
-            if (loc != null && (!loc.hasAccuracy() || loc.accuracy <= VisitStore.MAX_ACCURACY_M)) {
-                finishWith(loc, null); return
-            }
-            if (results.size >= providers.size) {
-                finishWith(results.values.filterNotNull().minByOrNull { if (it.hasAccuracy()) it.accuracy else Float.MAX_VALUE }, null)
-            }
-        }
-
-        val t = Runnable {
-            if (!done) finishWith(results.values.filterNotNull()
-                .minByOrNull { if (it.hasAccuracy()) it.accuracy else Float.MAX_VALUE }, null)
-        }
-        pendingTimeout = t
-        handler.postDelayed(t, FIX_TIMEOUT_MS)
-
-        for (provider in providers) {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val cancel = CancellationSignal()
-                    pendingCancels += cancel
-                    lm.getCurrentLocation(provider, cancel, mainExecutor) { loc -> handler.post { onResult(provider, loc) } }
-                } else {
-                    val listener = object : LocationListener {
-                        override fun onLocationChanged(location: Location) { onResult(provider, location) }
-                        @Deprecated("Deprecated in Java")
-                        override fun onStatusChanged(p: String?, s: Int, e: android.os.Bundle?) {}
-                        override fun onProviderEnabled(p: String) {}
-                        override fun onProviderDisabled(p: String) { onResult(provider, null) }
-                    }
-                    pendingListeners += listener
-                    @Suppress("DEPRECATION")
-                    lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
-                }
-            } catch (e: SecurityException) {
-                errors[provider] = "permission denied"
-                onResult(provider, null)
-            } catch (e: Exception) {
-                EventLog.error(this, "Posisjonsforespørsel feilet for $provider", e)
-                errors[provider] = "error: ${e.javaClass.simpleName}"
-                onResult(provider, null)
-            }
-        }
+    private fun needsGpsConfirm(loc: Location, source: String, place: String): Boolean {
+        if (source == SRC_GPS || !loc.hasAccuracy() || loc.accuracy <= PRECISE_ACC_M || !hasFine()) return false
+        val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+        if (fusedClient() == null && !enabled(lm, LocationManager.GPS_PROVIDER)) return false
+        val cur = VisitStore.current(this)?.name ?: return false
+        return !Places.same(Places.parse(Places.text(this)), cur, place)
     }
 
-    private fun onLocation(loc: Location) {
-        EventLog.add(this, EventLog.FIX, String.format(Locale.ROOT, "%.6f, %.6f · %s · ±%s m · %d s gammel",
-            loc.latitude, loc.longitude, loc.provider ?: "?",
-            if (loc.hasAccuracy()) Math.round(loc.accuracy).toString() else "?", ageMs(loc) / 1000))
+    private fun onLocation(loc: Location, source: String) {
+        markUsed(loc)
+        EventLog.add(this, EventLog.FIX, String.format(Locale.ROOT, "%s · ±%s m · %d s gammel · %.6f, %.6f · %s",
+            source, if (loc.hasAccuracy()) Math.round(loc.accuracy).toString() else "?", ageMs(loc) / 1000,
+            loc.latitude, loc.longitude, loc.provider ?: "?"))
+        lastSource = source
         if (!Geocoder.isPresent()) {
+            gpsOffAfterFix()
             setLastCheck("Geocoding is not available on this phone")
             busy = false
             releaseCheckWake()
@@ -579,14 +762,14 @@ class LocationService : Service() {
             try {
                 geocoder.getFromLocation(loc.latitude, loc.longitude, 1, object : Geocoder.GeocodeListener {
                     override fun onGeocode(addresses: MutableList<Address>) {
-                        handler.post { onAddress(addresses.firstOrNull(), loc) }
+                        handler.post { onAddress(addresses.firstOrNull(), loc, source) }
                     }
                     override fun onError(errorMessage: String?) {
-                        handler.post { onAddress(null, loc) }
+                        handler.post { onAddress(null, loc, source) }
                     }
                 })
             } catch (e: Exception) {
-                onAddress(null, loc)
+                onAddress(null, loc, source)
             }
         } else {
             executor.execute {
@@ -594,7 +777,7 @@ class LocationService : Service() {
                     @Suppress("DEPRECATION")
                     geocoder.getFromLocation(loc.latitude, loc.longitude, 1)?.firstOrNull()
                 } catch (e: Exception) { null }
-                handler.post { onAddress(a, loc) }
+                handler.post { onAddress(a, loc, source) }
             }
         }
     }
@@ -623,10 +806,29 @@ class LocationService : Service() {
      * Checks with no fix or no address are skipped. Visits are stored in the app
      * (visits.json).
      */
-    private fun onAddress(a: Address?, loc: Location) {
+    private fun onAddress(a: Address?, loc: Location, source: String) {
+        val raw = a?.let { formatAddress(it) }
+        // 1.28: a coarse fix that would change the place is double-checked with GPS first
+        if (raw != null && running && needsGpsConfirm(loc, source, Places.resolve(this, raw))) {
+            val place = Places.resolve(this, raw)
+            EventLog.add(this, EventLog.CHECK, "Mulig stedsbytte ($place) med grov posisjon ±${Math.round(loc.accuracy)} m ($source) – bekrefter med GPS")
+            holdCheckWake()
+            requestCurrent(highAccuracy = true) { g ->
+                if (g != null && (!g.hasAccuracy() || g.accuracy < loc.accuracy)) onLocation(g, SRC_GPS)
+                else {
+                    EventLog.add(this, EventLog.CHECK, "GPS-bekreftelse ga ingen bedre posisjon – bruker $source-posisjonen")
+                    applyAddress(raw, loc)
+                }
+            }
+            return
+        }
+        applyAddress(raw, loc)
+    }
+
+    private fun applyAddress(raw: String?, loc: Location) {
+        gpsOffAfterFix()
         busy = false
         releaseCheckWake()
-        val raw = a?.let { formatAddress(it) }
         if (raw == null) {
             try { VisitStore.onFixOnly(this, loc) } catch (e: Exception) { EventLog.error(this, "Turoppdatering feilet", e) }
             setLastCheck("No address found (requires internet) – retrying in ${LogStore.intervalMin(this)} min")

@@ -178,6 +178,7 @@ object AdbReporter {
         if (!force && now - lastRunAt < MIN_GAP_MS) return
         running = true
         lastRunAt = now
+        holdWake(ctx)
         val turnedOn = try { ensureWifiDebugging(ctx) } catch (_: Exception) { false }
         val wifi = adbWifi(ctx)
         if (wifi == "off") { io.execute { finish(ctx, u, wifi, null, force, tcp5555()) }; return }
@@ -188,8 +189,22 @@ object AdbReporter {
 
     /** A forced report that arrived while one was running is sent right after it. */
     @Volatile private var pendingForce = false
+    // Short wake lock (with timeout) so a report started from a check finishes in Doze (1.28: the
+    // service no longer holds a permanent wake lock). Released when the report is done.
+    private var wake: android.os.PowerManager.WakeLock? = null
+    private fun holdWake(ctx: Context) {
+        try {
+            val wl = wake ?: (ctx.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager)
+                .newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "LocationLogger::report")
+                .apply { setReferenceCounted(false) }
+            wake = wl
+            wl.acquire(120_000L)
+        } catch (_: Exception) {}
+    }
+
     private fun done(ctx: Context) {
         running = false
+        try { wake?.let { if (it.isHeld) it.release() } } catch (_: Exception) {}
         if (pendingForce) { pendingForce = false; main.postDelayed({ maybeReport(ctx, force = true) }, 2000) }
     }
 
