@@ -98,6 +98,7 @@ class LocationService : Service() {
         EventLog.add(this, EventLog.CHECK, "Periodisk sjekk startet (hvert ${LogStore.intervalMin(this)}. min)")
         checkLocation()
         scheduleNext()
+        try { ShizukuWatch.check(this) } catch (e: Exception) { EventLog.error(this, "Shizuku-sjekk feilet", e) }
         try { AdbReporter.maybeReport(this) } catch (e: Exception) { EventLog.error(this, "adb-rapport feilet", e) }
     }
 
@@ -215,6 +216,7 @@ class LocationService : Service() {
             acquireWakeLock()
             startPassive()
             startNetWatch()
+            try { ShizukuWatch.init(this) } catch (e: Exception) { EventLog.error(this, "Shizuku-lytter feilet", e) }
             scheduleNetReport() // report once on service start (boot, update, restart)
             LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
             // Continue the earlier schedule if the service was restarted (boot, update, killed)

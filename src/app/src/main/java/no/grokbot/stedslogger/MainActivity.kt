@@ -636,7 +636,8 @@ class MainActivity : Activity() {
              else "Permission WRITE_SECURE_SETTINGS: not granted (grant via adb) – cannot turn it on") +
             (p.getString(AdbReporter.KEY_KEEP_STATUS, null)?.let { "\nLast: $it" } ?: "")
         findViewById<TextView>(R.id.dashboardStatus).text =
-            if (AdbReporter.url(this).isEmpty()) "Off" else (AdbReporter.status(this) ?: "Not reported yet")
+            (if (AdbReporter.url(this).isEmpty()) "Off" else (AdbReporter.status(this) ?: "Not reported yet")) +
+                "\n" + ShizukuWatch.statusLine(this)
         lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")
         btnBackground.isEnabled = !hasBackgroundLocation()
         btnBattery.isEnabled = !isIgnoringBattery()

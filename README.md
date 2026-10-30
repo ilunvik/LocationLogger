@@ -53,7 +53,7 @@ The app has three tabs:
 - **Log** (since 1.25, labels in Norwegian) – every debug entry, newest first, with time (phone's time
   zone), type and details: check started / result (`SJEKK`), every raw location fix with coordinates,
   provider, accuracy and age (`POSISJON`), visit outcome (`BESØK`), the stored visits' arrival / last seen
-  (`BESØKSLISTE`), dashboard reports and wireless-debugging changes (`ADB`), network changes (`NETT`),
+  (`BESØKSLISTE`), dashboard reports and wireless-debugging changes (`ADB`), Shizuku running/stopped (`SHIZUKU`, 1.27+), network changes (`NETT`),
   service start/stop, boot, update and alarm restarts (`TJENESTE`) and errors (`FEIL`). A type filter,
   **Oppdater** (refresh), **Kopier** (copy as text), **Del** (share) and **Tøm** (clear, after confirming;
   visits are kept). Long-press an entry to copy it.
@@ -135,6 +135,18 @@ android.permission.WRITE_SECURE_SETTINGS`) and wireless debugging is off while t
 it sets `Settings.Global adb_wifi_enabled = 1` – the only setting it writes for this. Nothing else is
 turned on or off. Empty URL = disabled. No URL is built in; the endpoint should only be
 reachable from your own network (e.g. a tailnet).
+
+**Shizuku watch (1.27+).** At every periodic check (also in Doze, via the wake-up alarm) the app checks
+whether [Shizuku](https://shizuku.rikka.app/) is running, and each report carries
+`"shizuku": "running" | "stopped" | "not_installed" | "unknown"`. Detection uses the Shizuku API library
+(`dev.rikka.shizuku:api` + `provider`): the Shizuku server hands its binder to apps that declare
+`rikka.shizuku.ShizukuProvider`, and `Shizuku.pingBinder()` tells whether it is alive. The app never asks
+for Shizuku permission and never calls anything on the binder besides ping (it does appear in Shizuku's app
+list as a client that has not been granted access). A binder-dead listener notices a stop at once. When
+Shizuku has stopped, a report is sent right away and then at most every 2 minutes (in practice at each
+check) while it stays stopped, so the dashboard host can start it again over adb; when it is back, one
+more report is sent. State changes are logged in the Log tab under `SHIZUKU` ("Shizuku stoppet – varsler
+Asus" / "Shizuku kjører igjen"), and Settings shows the current Shizuku state under the dashboard status.
 
 ## Street View
 

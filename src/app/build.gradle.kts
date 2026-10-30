@@ -9,8 +9,8 @@ android {
         applicationId = "no.grokbot.stedslogger"
         minSdk = 26
         targetSdk = 34
-        versionCode = 27
-        versionName = "1.26"
+        versionCode = 28
+        versionName = "1.27"
     }
     buildTypes {
         release {
@@ -26,5 +26,8 @@ android {
     lint { abortOnError = false }
 }
 dependencies {
+    // Shizuku API: only used to ping the Shizuku binder (is Shizuku running?), see ShizukuWatch
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
     testImplementation("junit:junit:4.13.2")
 }
