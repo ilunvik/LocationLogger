@@ -47,7 +47,7 @@ at most 4000 entries, oldest dropped first). Nothing is written to shared storag
 
 ## Screens
 
-The app has three tabs:
+The app has four tabs (the **Samtaler** tab since 1.32, see [Calls and SMS](#calls-and-sms-132)):
 
 - **Visits** – running/stopped status (with a warning if a permission or battery setting needs
   attention), the last check, **Check now** (its progress, "Checking now …", and then its result are shown in the
@@ -238,6 +238,56 @@ address included), to the first sighting of the new stop.
 - It is an approximation: it only knows where the phone was at each check, so with 5-minute checks
   winding roads are cut short (and a trip shorter than one interval is roughly a straight line).
   A shorter interval gives a closer result at the cost of more GPS use and battery.
+
+## Calls and SMS (1.32)
+
+Everything here is **off or read-only by default**, every permission is asked for in the app, and the
+call log, SMS, MMS and recordings are **only read on the phone** – they are never stored by the app,
+copied or sent anywhere (not to the dashboard either). The only thing that leaves the phone is an unknown
+number sent to the directory lookup.
+
+- **Samtaler tab** – incoming / outgoing / missed / rejected calls (`CallLog`), SMS (`Telephony.Sms`) and
+  MMS (`Telephony.Mms`, text part and sender) newest first (up to 400 calls, 400 SMS, 100 MMS), with the
+  contact name, the looked-up name ("Name (1881.no)") or the number, time, call duration or the start of
+  the text, and direction icons (↙ in, ↗ out, ✕ missed). Filter chips **Alle / Samtaler / SMS/MMS**.
+  Tap an entry for details (full SMS text).
+- **Number lookup** – Norwegian 8-digit numbers that are not in the contacts are looked up on the
+  1881.no search page (the result box whose `tel:` link is exactly the number; gulesider.no is tried as a
+  best-effort fallback but is usually behind a Cloudflare challenge). Results are cached on the phone
+  (`files/lookup_cache.json`; found 90 days, not found 14 days). At least 3 s between requests, at most 40
+  per hour; a block (HTTP 403/429/503 or a challenge page) pauses that site for 6 h. New entries in the tab
+  are looked up automatically (max 15 per refresh), or with **🔍 Slå opp** on an entry. Setting:
+  *Slå opp ukjente nummer på 1881.no* (on).
+- **Add to contacts** – **+ Legg til i kontakter** on an entry with a looked-up name creates a new phone
+  contact (name, number, note "Oppslag via LocationLogger (source, date)"). With *Legg automatisk til
+  oppslag i kontakter* (off by default) this happens after every successful lookup. An existing contact
+  is never changed or overwritten.
+- **Call recordings** – ordinary apps cannot record the other party of a call on modern Android
+  (`VOICE_CALL` is reserved for system apps), so the app plays recordings saved by other recorders,
+  found through MediaStore (`READ_MEDIA_AUDIO`, or `READ_EXTERNAL_STORAGE` on Android ≤ 12):
+  Samsung's built-in call recording (`Recordings/Call/` or `Call/`, `…_YYMMDD_HHMMSS.m4a`) and ACR Phone
+  (`Recordings/ACRPhone/…/<number>-<dir>-<epoch ms>.m4a`). A recording is shown as **▶ Opptak** on the
+  call it belongs to (start within 60 s before the call to 90 s after it ended, same number when the file
+  name has one) and plays in an in-app player (play/pause, seek bar). Files are only read.
+- **Experimental recorder** (off by default, *tar trolig bare opp din egen stemme*): records the
+  microphone (`VOICE_COMMUNICATION`, else `MIC`) in a `microphone` foreground service while a call is
+  active, into the app-specific folder `Android/data/no.grokbot.stedslogger/files/Samtaleopptak/`.
+  Android 14+ may refuse a microphone service started from the background, or record silence.
+- **Popup** (*Popup ved innkommende samtale/SMS*, off): a high-priority (heads-up) notification with the
+  caller's / sender's name or lookup result; updated when the lookup finishes; a missed call from a
+  looked-up number leaves a normal notification. No overlay permission is needed.
+- **Read aloud** (*Les opp innringer/SMS*, off): Android text-to-speech in Norwegian (nb-NO):
+  "Anrop fra …", "SMS fra …" and, with *Les også opp SMS-teksten*, the text. Needs a Norwegian voice in
+  the phone's text-to-speech settings.
+- **Log tab** – new types `SAMTALE`, `SMS`, `OPPSLAG`, `OPPTAK`, `TTS`. Numbers are masked to the last
+  three digits and SMS texts are never logged.
+
+Permissions: Telefon (`READ_PHONE_STATE`), Samtalelogg (`READ_CALL_LOG`), SMS (`READ_SMS`,
+`RECEIVE_SMS`, `RECEIVE_MMS`), Kontakter (`READ_CONTACTS`, `WRITE_CONTACTS`), Musikk og lyd
+(`READ_MEDIA_AUDIO`), Varsler; Mikrofon (`RECORD_AUDIO`) only for the experimental recorder. On Android
+13+ SMS and call-log permissions can be a *restricted setting* for apps installed outside an app store:
+if Android says "Restricted setting", open App info (button in Settings), tap ⋮ › *Allow restricted
+settings*, then grant them under Permissions.
 
 ## Permissions
 

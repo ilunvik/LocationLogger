@@ -40,7 +40,7 @@ class LogTab(private val act: Activity) {
     private var shown: List<LogEntry> = emptyList()
     private var loading = false
     private val types = listOf(ALL, EventLog.CHECK, EventLog.FIX, EventLog.VISIT, VISIT_LIST,
-        EventLog.ADB, EventLog.SHIZUKU, EventLog.TAILSCALE, EventLog.BROWSER, EventLog.NET, EventLog.SERVICE, EventLog.ERROR)
+        EventLog.ADB, EventLog.SHIZUKU, EventLog.TAILSCALE, EventLog.BROWSER, EventLog.CALL, EventLog.SMS, EventLog.LOOKUP, EventLog.RECORDING, EventLog.TTS, EventLog.NET, EventLog.SERVICE, EventLog.ERROR)
 
     private val adapter = object : BaseAdapter() {
         override fun getCount() = shown.size
@@ -71,6 +71,9 @@ class LogTab(private val act: Activity) {
         EventLog.SHIZUKU -> 0xFF00838F.toInt()
         EventLog.TAILSCALE -> 0xFF283593.toInt()
         EventLog.BROWSER -> 0xFF4E342E.toInt()
+        EventLog.CALL, EventLog.SMS -> 0xFF00695C.toInt()
+        EventLog.LOOKUP -> 0xFFAD1457.toInt()
+        EventLog.RECORDING, EventLog.TTS -> 0xFF5D4037.toInt()
         else -> 0xFF424242.toInt()
     }
 

@@ -30,6 +30,10 @@ class MainActivity : Activity() {
         private const val REQ_BACKGROUND = 2
         private const val REQ_PICK_IMAGE = 3
         private const val REQ_ICEBOX = 4
+        private const val REQ_COMMS = 5
+        private const val REQ_REC_AUDIO = 6
+        const val EXTRA_TAB = "tab"
+        const val TAB_COMMS = 3
         private const val STATE_PICK_ID = "pick_slot_id"
         private const val STATE_PICK_LABEL = "pick_slot_label"
         private const val MAX_VISITS = 300
@@ -82,8 +86,12 @@ class MainActivity : Activity() {
         findViewById<android.view.View>(R.id.tabLog).setOnClickListener {
             if (tab != 1 || confirmLeavePlaces { showTab(2) }) showTab(2)
         }
+        findViewById<android.view.View>(R.id.tabComms).setOnClickListener {
+            if (tab != 1 || confirmLeavePlaces { showTab(TAB_COMMS) }) showTab(TAB_COMMS)
+        }
         logTab = LogTab(this)
-        showTab(LogStore.prefs(this).getInt(KEY_TAB, 0))
+        commsTab = CommsTab(this) { askCommPermissions() }
+        showTab(intent?.getIntExtra(EXTRA_TAB, -1)?.takeIf { it >= 0 } ?: LogStore.prefs(this).getInt(KEY_TAB, 0))
         visits = findViewById(R.id.visits)
         btnBackground = findViewById(R.id.btnBackground)
         btnBattery = findViewById(R.id.btnBattery)
@@ -111,6 +119,7 @@ class MainActivity : Activity() {
         setupPlaces(savedInstanceState != null)
         setupStreetView()
         setupDashboard()
+        setupComms()
         updatePlaceThumbs()
 
         chkGpsOff = findViewById(R.id.chkGpsOff)
@@ -135,6 +144,14 @@ class MainActivity : Activity() {
         uiHandler.removeCallbacks(minuteTick)
         uiHandler.post(minuteTick) // refreshes now and every minute (running duration)
         if (tab == 2) logTab.load()
+        if (tab == TAB_COMMS) commsTab.load()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val t = intent.getIntExtra(EXTRA_TAB, -1)
+        if (t >= 0 && (tab != 1 || !placesDirty())) showTab(t)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -189,20 +206,22 @@ class MainActivity : Activity() {
 
     private var tab = 0
     private lateinit var logTab: LogTab
+    private lateinit var commsTab: CommsTab
 
     private fun showTab(index: Int) {
-        tab = if (index in 0..2) index else 0
-        val pages = listOf(R.id.pageVisits, R.id.pageSettings, R.id.pageLog)
-        val labels = listOf(R.id.tabVisitsLabel, R.id.tabSettingsLabel, R.id.tabLogLabel)
-        val lines = listOf(R.id.tabVisitsLine, R.id.tabSettingsLine, R.id.tabLogLine)
+        tab = if (index in 0..3) index else 0
+        val pages = listOf(R.id.pageVisits, R.id.pageSettings, R.id.pageLog, R.id.pageComms)
+        val labels = listOf(R.id.tabVisitsLabel, R.id.tabSettingsLabel, R.id.tabLogLabel, R.id.tabCommsLabel)
+        val lines = listOf(R.id.tabVisitsLine, R.id.tabSettingsLine, R.id.tabLogLine, R.id.tabCommsLine)
         val on = 0xFF1565C0.toInt()
         val off = 0xFF757575.toInt()
-        for (i in 0..2) {
+        for (i in 0..3) {
             findViewById<android.view.View>(pages[i]).visibility = if (tab == i) android.view.View.VISIBLE else android.view.View.GONE
             findViewById<TextView>(labels[i]).setTextColor(if (tab == i) on else off)
             findViewById<android.view.View>(lines[i]).visibility = if (tab == i) android.view.View.VISIBLE else android.view.View.INVISIBLE
         }
         if (tab == 2) logTab.load()
+        if (tab == TAB_COMMS) commsTab.load()
         if (tab != 1) {
             currentFocus?.let {
                 (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(it.windowToken, 0)
@@ -215,7 +234,7 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (tab == 1) { if (confirmLeavePlaces { showTab(0) }) showTab(0) }
-        else if (tab == 2) showTab(0)
+        else if (tab == 2 || tab == TAB_COMMS) showTab(0)
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
@@ -587,6 +606,7 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_ICEBOX) { BrowserOpener.onPermissionResult(this); showBrowserStatus(); return }
+        if (requestCode == REQ_COMMS || requestCode == REQ_REC_AUDIO) { onCommPermissionsResult(requestCode, permissions, grantResults); return }
         when (requestCode) {
             REQ_FOREGROUND -> {
                 if (hasForegroundLocation()) {
@@ -615,6 +635,121 @@ class MainActivity : Activity() {
             }
         }
         refresh()
+    }
+
+    // ---------- calls and SMS (1.32) ----------
+
+    /** Runtime permissions for the Samtaler tab, popup / read-aloud, lookup and recordings. */
+    private fun commPermissions(): List<String> = buildList {
+        add(Manifest.permission.READ_PHONE_STATE)
+        add(Manifest.permission.READ_CALL_LOG)
+        add(Manifest.permission.READ_SMS)
+        add(Manifest.permission.RECEIVE_SMS)
+        add(Manifest.permission.RECEIVE_MMS)
+        add(Manifest.permission.READ_CONTACTS)
+        add(Manifest.permission.WRITE_CONTACTS)
+        add(Recordings.permission())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun permLabel(p: String) = when (p) {
+        Manifest.permission.READ_PHONE_STATE -> "Telefon (se når det ringer)"
+        Manifest.permission.READ_CALL_LOG -> "Samtalelogg"
+        Manifest.permission.READ_SMS -> "Lese SMS/MMS"
+        Manifest.permission.RECEIVE_SMS -> "Motta SMS"
+        Manifest.permission.RECEIVE_MMS -> "Motta MMS"
+        Manifest.permission.READ_CONTACTS -> "Lese kontakter"
+        Manifest.permission.WRITE_CONTACTS -> "Legge til kontakter"
+        Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.READ_EXTERNAL_STORAGE -> "Lydfiler (samtaleopptak)"
+        Manifest.permission.POST_NOTIFICATIONS -> "Varsler (popup)"
+        Manifest.permission.RECORD_AUDIO -> "Mikrofon (eksperimentelt opptak)"
+        else -> p.substringAfterLast('.')
+    }
+
+    private fun askCommPermissions() {
+        val missing = commPermissions().filter { !granted(it) }
+        if (missing.isEmpty()) {
+            Toast.makeText(this, "Alle tilganger er gitt", Toast.LENGTH_SHORT).show()
+            commsTab.load(); refresh(); return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Tilgang til samtaler og SMS")
+            .setMessage("For å vise samtaler, SMS og MMS, slå opp ukjente nummer, spille av samtaleopptak og vise popup/lese opp " +
+                "hvem som ringer, trenger LocationLogger disse tilgangene:\n\n• " + missing.joinToString("\n• ") { permLabel(it) } +
+                "\n\nAlt blir på telefonen. Bare ukjente nummer sendes til 1881.no for oppslag (kan slås av).\n\n" +
+                "Trykk «Tillat» på hvert spørsmål. Får du «Begrenset innstilling»: åpne appinfo › ⋮ › «Tillat begrensede innstillinger», og prøv igjen.")
+            .setPositiveButton("Fortsett") { _, _ -> requestPermissions(missing.toTypedArray(), REQ_COMMS) }
+            .setNeutralButton("Appinfo") { _, _ -> openAppSettings() }
+            .setNegativeButton("Ikke nå", null)
+            .show()
+    }
+
+    private fun onCommPermissionsResult(requestCode: Int, permissions: Array<out String>, results: IntArray) {
+        val denied = permissions.filterIndexed { i, _ -> results.getOrNull(i) != PackageManager.PERMISSION_GRANTED }
+        EventLog.add(this, EventLog.SERVICE, "Tilganger (samtaler/SMS): ${permissions.size - denied.size} av ${permissions.size} gitt" +
+            if (denied.isNotEmpty()) " – mangler ${denied.joinToString { it.substringAfterLast('.') }}" else "")
+        Phone.clearCache()
+        if (requestCode == REQ_REC_AUDIO && denied.isNotEmpty()) {
+            LogStore.prefs(this).edit().putBoolean(CallRecorderService.KEY_ENABLED, false).apply()
+            findViewById<CheckBox>(R.id.checkRecExperimental).isChecked = false
+        }
+        if (denied.isNotEmpty()) {
+            val restricted = denied.any { it in setOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS,
+                Manifest.permission.RECEIVE_MMS, Manifest.permission.READ_CALL_LOG) }
+            AlertDialog.Builder(this)
+                .setTitle("Noen tilganger mangler")
+                .setMessage("Ikke gitt: " + denied.joinToString(", ") { permLabel(it) } + "." +
+                    (if (restricted) "\n\nSMS og samtalelogg er «begrensede innstillinger» for apper som ikke er installert fra Play-butikken. " +
+                        "Åpne appinfo, trykk ⋮ øverst til høyre › «Tillat begrensede innstillinger» (bekreft med PIN/fingeravtrykk), " +
+                        "og gå så til Tillatelser og slå på SMS, Samtalelogg og Telefon." else "") +
+                    "\n\nDu kan også gi tilgangene i appinfo › Tillatelser.")
+                .setPositiveButton("Åpne appinfo") { _, _ -> openAppSettings() }
+                .setNegativeButton("Lukk", null)
+                .show()
+        }
+        if (tab == TAB_COMMS) commsTab.load()
+        refresh()
+    }
+
+    private fun setupComms() {
+        val p = LogStore.prefs(this)
+        fun bind(id: Int, key: String, def: Boolean, onChange: (Boolean) -> Unit = {}) {
+            val c = findViewById<CheckBox>(id)
+            c.isChecked = p.getBoolean(key, def)
+            c.setOnCheckedChangeListener { _, on -> p.edit().putBoolean(key, on).apply(); onChange(on); refresh() }
+        }
+        val needCalls = { on: Boolean -> if (on && commPermissions().any { !granted(it) }) askCommPermissions() }
+        bind(R.id.checkCommPopup, Announcer.KEY_POPUP, false, needCalls)
+        bind(R.id.checkCommTts, Announcer.KEY_TTS, false, needCalls)
+        bind(R.id.checkCommTtsText, Announcer.KEY_TTS_SMS_TEXT, false)
+        bind(R.id.checkLookup, NumberLookup.KEY_ENABLED, true)
+        bind(R.id.checkLookupContact, NumberLookup.KEY_AUTO_CONTACT, false) { on ->
+            if (on && !granted(Manifest.permission.WRITE_CONTACTS)) askCommPermissions()
+        }
+        bind(R.id.checkRecExperimental, CallRecorderService.KEY_ENABLED, false) { on ->
+            if (on && !granted(Manifest.permission.RECORD_AUDIO)) {
+                AlertDialog.Builder(this)
+                    .setTitle("Eksperimentelt opptak")
+                    .setMessage("Android lar ikke vanlige apper ta opp samtalelyd. Dette tar opp mikrofonen under samtalen og " +
+                        "får trolig bare med din egen stemme (eller stillhet). Opptakene lagres bare i appens egen mappe på telefonen. " +
+                        "Husk at du må informere den du snakker med om at samtalen tas opp.\n\nGi tilgang til mikrofonen på neste skjerm.")
+                    .setPositiveButton("Fortsett") { _, _ -> requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_REC_AUDIO) }
+                    .setNegativeButton("Avbryt") { _, _ -> findViewById<CheckBox>(R.id.checkRecExperimental).isChecked = false }
+                    .show()
+            }
+        }
+        findViewById<Button>(R.id.btnCommPermsSettings).setOnClickListener { askCommPermissions() }
+        findViewById<Button>(R.id.btnAppInfo).setOnClickListener { openAppSettings() }
+        findViewById<Button>(R.id.btnTtsTest).setOnClickListener { Announcer.speak(this, "Anrop fra Ola Nordmann", "test") }
+        findViewById<TextView>(R.id.recHelp).text =
+            "Avspilling: appen finner opptak fra Samsungs innebygde samtaleopptak (Telefon › ⋮ › Innstillinger › Ta opp samtaler) " +
+            "og fra ACR Phone, og viser ▶ Opptak på samtalen i fanen Samtaler. Opptak i appen selv er av som standard."
+    }
+
+    private fun commStatusText(): String {
+        val missing = commPermissions().filter { !granted(it) }
+        return (if (missing.isEmpty()) "Tilganger: alle gitt" else "Tilganger mangler: " + missing.joinToString(", ") { permLabel(it) }) +
+            (if (CallRecorderService.enabled(this) && !granted(Manifest.permission.RECORD_AUDIO)) "\nMikrofon: ikke gitt (eksperimentelt opptak virker ikke)" else "")
     }
 
     /** Browser / Ice Box line under Street View in Settings (1.30). */
@@ -659,6 +794,10 @@ class MainActivity : Activity() {
         findViewById<TextView>(R.id.dashboardStatus).text =
             (if (AdbReporter.url(this).isEmpty()) "Off" else (AdbReporter.status(this) ?: "Not reported yet")) +
                 "\n" + ShizukuWatch.statusLine(this) + "\n" + TailscaleWatch.statusLine(this)
+        findViewById<TextView>(R.id.commPermStatus).text = commStatusText()
+        findViewById<Button>(R.id.btnCommPermsSettings).isEnabled = commPermissions().any { !granted(it) }
+        findViewById<TextView>(R.id.lookupStatus).text = "Oppslag lagret: ${NumberLookup.cacheSize(this)}" +
+            (NumberLookup.status(this)?.let { " · $it" } ?: "")
         lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")
         btnBackground.isEnabled = !hasBackgroundLocation()
         btnBattery.isEnabled = !isIgnoringBattery()

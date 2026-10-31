@@ -28,6 +28,11 @@ object EventLog {
     const val SHIZUKU = "SHIZUKU"  // Shizuku running/stopped (since 1.27)
     const val TAILSCALE = "TAILSCALE" // Tailscale VPN up/off, start attempts (since 1.29)
     const val BROWSER = "STREETVIEW" // Street View taps: Google Maps / browser, defrosted by Ice Box (since 1.30)
+    const val CALL = "SAMTALE"     // incoming / outgoing / missed calls (since 1.32; numbers masked to the last 3 digits)
+    const val SMS = "SMS"          // received SMS / MMS (since 1.32; never the text)
+    const val LOOKUP = "OPPSLAG"   // directory lookups of unknown numbers, contacts added (since 1.32)
+    const val RECORDING = "OPPTAK" // call recordings: playback, experimental recorder (since 1.32)
+    const val TTS = "TTS"          // read-aloud of callers / SMS (since 1.32)
     const val NET = "NETT"         // network changes
     const val SERVICE = "TJENESTE" // service start/stop, boot, alarm restarts
     const val ERROR = "FEIL"       // errors and exceptions

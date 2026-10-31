@@ -37,6 +37,32 @@
                 android:background="@color/ic_bg" />
         </LinearLayout>
         <LinearLayout
+            android:id="@+id/tabComms"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/tabCommsLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="14dp"
+                android:paddingBottom="12dp"
+                android:text="Samtaler"
+                android:textAllCaps="true"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+            <View
+                android:id="@+id/tabCommsLine"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:background="@color/ic_bg" />
+        </LinearLayout>
+        <LinearLayout
             android:id="@+id/tabSettings"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -470,8 +496,170 @@
                     android:layout_marginTop="8dp"
                     android:text="Keep Tailscale on (ask it to connect when it is off; notify if it stays off)" />
 
+                <!-- 1.32: calls and SMS -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="Samtaler og SMS"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/commPermStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textIsSelectable="true"
+                    android:textSize="13sp" />
+                <Button
+                    android:id="@+id/btnCommPermsSettings"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Gi tilgang til samtaler, SMS og kontakter" />
+                <Button
+                    android:id="@+id/btnAppInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Åpne appinfo (begrensede innstillinger)" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Står det «Begrenset innstilling» / «Restricted setting» når du gir tilgang til SMS eller samtalelogg? Android begrenser det for apper som ikke er fra Play-butikken. Åpne appinfo, trykk ⋮ øverst til høyre og velg «Tillat begrensede innstillinger», og prøv igjen."
+                    android:textColor="#757575"
+                    android:textSize="12sp" />
+                <CheckBox
+                    android:id="@+id/checkCommPopup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Popup ved innkommende samtale/SMS (navn eller oppslag)" />
+                <CheckBox
+                    android:id="@+id/checkCommTts"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Les opp innringer/SMS (norsk tale)" />
+                <CheckBox
+                    android:id="@+id/checkCommTtsText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="32dp"
+                    android:text="Les også opp SMS-teksten (ellers bare avsender)" />
+                <Button
+                    android:id="@+id/btnTtsTest"
+                    style="?android:attr/buttonStyleSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="32dp"
+                    android:text="Test opplesing" />
+                <CheckBox
+                    android:id="@+id/checkLookup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Slå opp ukjente nummer på 1881.no" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="32dp"
+                    android:text="Bare nummeret sendes (norske 8-sifrede nummer som ikke er i kontakter). Svar lagres på telefonen. Maks 40 oppslag i timen."
+                    android:textColor="#757575"
+                    android:textSize="12sp" />
+                <CheckBox
+                    android:id="@+id/checkLookupContact"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Legg automatisk til oppslag i kontakter" />
+                <TextView
+                    android:id="@+id/lookupStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="32dp"
+                    android:textSize="12sp" />
+                <CheckBox
+                    android:id="@+id/checkRecExperimental"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Eksperimentelt samtaleopptak i appen – tar trolig bare opp din egen stemme" />
+                <TextView
+                    android:id="@+id/recHelp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#757575"
+                    android:textSize="12sp" />
+
             </LinearLayout>
         </ScrollView>
+
+        <!-- Tab 4 (1.32): calls, SMS and MMS -->
+        <LinearLayout
+            android:id="@+id/pageComms"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="8dp"
+            android:visibility="gone">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <Button
+                    android:id="@+id/chipAll"
+                    style="?android:attr/buttonStyleSmall"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textAllCaps="false"
+                    android:text="Alle" />
+                <Button
+                    android:id="@+id/chipCalls"
+                    style="?android:attr/buttonStyleSmall"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textAllCaps="false"
+                    android:text="Samtaler" />
+                <Button
+                    android:id="@+id/chipMsgs"
+                    style="?android:attr/buttonStyleSmall"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textAllCaps="false"
+                    android:text="SMS/MMS" />
+                <Button
+                    android:id="@+id/btnCommRefresh"
+                    style="?android:attr/buttonStyleSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⟳" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/commInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:textColor="#757575"
+                android:textSize="12sp" />
+            <Button
+                android:id="@+id/btnCommPerms"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:text="Gi tilgang til samtaler, SMS og kontakter" />
+            <ListView
+                android:id="@+id/commList"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:divider="#E0E0E0"
+                android:dividerHeight="1dp"
+                android:fastScrollEnabled="true" />
+        </LinearLayout>
 
         <!-- Tab 3: debug log (all entries, newest first) -->
         <LinearLayout
