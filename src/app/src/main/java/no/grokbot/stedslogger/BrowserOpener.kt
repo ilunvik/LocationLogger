@@ -15,14 +15,14 @@ import android.widget.Toast
 import java.util.concurrent.Executors
 
 /**
- * Opens links (the Street View view of a stop) in Google Maps or a browser, and when every app that
- * could open the link is frozen by Ice Box (pm disable-user or pm hide), asks Ice Box to defrost the
- * chosen browser first (since 1.30).
+ * Opens a stop's Street View in the Google Maps app (since 1.31), defrosting Maps with Ice Box first
+ * when it is frozen (pm disable-user or pm hide). Falls back to a browser (the 1.30 path, which also
+ * defrosts a frozen browser) when Maps is missing or Ice Box is unavailable or not allowed.
  *
  * Ice Box is driven only through its official SDK (github.com/heruoxin/IceBox-SDK): a content-provider
  * call to `content://com.catchingnow.icebox.SDK` ("set_enable"), which needs the runtime permission
  * `com.catchingnow.icebox.SDK` that the user grants once in the normal Android permission dialog.
- * The app never freezes anything; Ice Box's own rules decide when the browser is frozen again.
+ * The app never freezes anything; Ice Box's own rules decide when an app is frozen again.
  */
 object BrowserOpener {
     const val ICEBOX = "com.catchingnow.icebox"
@@ -141,13 +141,12 @@ object BrowserOpener {
         ctx.contentResolver.call(SDK_URI, "set_enable", null, extra)
     }
 
-    /** One-line state for Settings. */
+    /** State for Settings: Google Maps, Ice Box, fallback browser. */
     fun statusLine(ctx: Context): String {
-        val t = target(ctx)
-        val b = when {
-            t == null -> "Browser: automatic (asks the first time one is needed)"
-            else -> "Browser: ${label(ctx, t)}" + (if (chosen(ctx) == null) " (last used)" else "") +
-                (if ((frozenState(ctx, t) ?: 0) != 0) " – frozen now" else "")
+        val maps = "Google Maps: " + when (frozenState(ctx, MAPS)) {
+            null -> "not installed (the browser is used)"
+            0 -> "ready"
+            else -> "frozen – Ice Box defrosts it on tap"
         }
         val ice = when {
             !iceBoxInstalled(ctx) -> "Ice Box: not installed"
@@ -155,104 +154,164 @@ object BrowserOpener {
                 "MODE_PM_DISABLE_USER" -> "freezes by disabling"
                 "MODE_PM_HIDE" -> "freezes by hiding"
                 else -> "not active"
-            } + if (hasIceBoxPermission(ctx)) ", may defrost ✓" else ", permission not granted yet (asked on first use)"
+            } + if (hasIceBoxPermission(ctx)) ", may defrost ✓" else ", permission not granted yet (asked on first tap)"
         }
-        return "$b\n$ice"
+        val t = target(ctx)
+        val b = "Fallback browser: " + (if (t == null) "automatic (asks if one is needed)"
+            else label(ctx, t) + (if (chosen(ctx) == null) " (last used)" else "") +
+                (if ((frozenState(ctx, t) ?: 0) != 0) " – frozen now" else ""))
+        return "$maps\n$ice\n$b"
     }
 
     // ---------- opening ----------
 
-    /** Pending link while the Ice Box permission dialog is open. */
-    private var pending: Pair<String, String>? = null
+    const val MAPS = "com.google.android.apps.maps"
+
+    /** What to open: a package and the links to try in it, in order. */
+    private class Target(val pkg: String, val uris: List<String>, val what: String, val fallbackUrl: String?)
+
+    /** Link waiting for the Ice Box permission dialog. */
+    private var pending: Target? = null
 
     /**
-     * Opens [url]: normally if some app (Google Maps or a browser) can open it; otherwise defrosts the
-     * browser with Ice Box first. [reqIceBox] is the request code used for the Ice Box permission.
+     * 1.31: opens Street View at [lat],[lon] in the Google Maps app (google.streetview: intent, then
+     * the https pano link, both with setPackage Maps). If Maps is frozen by Ice Box it is defrosted
+     * first. Without Maps, or when Ice Box is unavailable or not allowed, falls back to a browser
+     * ([httpsUrl]).
      */
-    fun open(act: Activity, url: String, what: String, reqIceBox: Int) {
+    fun openStreetView(act: Activity, lat: Double, lon: Double, heading: Int?, httpsUrl: String, reqIceBox: Int) {
+        val sv = String.format(java.util.Locale.US, "google.streetview:cbll=%.6f,%.6f", lat, lon) +
+            (heading?.let { "&cbp=0,$it,0,0,0" } ?: "")
+        val t = Target(MAPS, listOf(sv, httpsUrl), "Street View", httpsUrl)
+        when (val state = frozenState(act, MAPS)) {
+            null -> fallback(act, t, "Google Maps is not installed", reqIceBox)
+            0 -> start(act, t, null)
+            else -> viaIceBox(act, t, state, reqIceBox)
+        }
+    }
+
+    /** Browser fallback (the 1.30 path): any app that opens the link, else a (defrosted) browser. */
+    private fun fallback(act: Activity, t: Target, why: String, reqIceBox: Int?) {
+        val url = t.fallbackUrl ?: run { toastLog(act, why, "${t.what}: $why"); return }
+        Toast.makeText(act, "$why – opening the browser", Toast.LENGTH_SHORT).show()
+        EventLog.add(act, EventLog.BROWSER, "${t.what}: $why, falling back to the browser")
+        open(act, url, t.what, reqIceBox)
+    }
+
+    /**
+     * Opens [url] with any app that can (Maps or a browser); otherwise with the chosen / last-used
+     * browser, defrosted by Ice Box if needed. [reqIceBox] null = do not ask for the Ice Box permission.
+     */
+    fun open(act: Activity, url: String, what: String, reqIceBox: Int?) {
         val intent = viewIntent(url)
         val ri = act.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
         val handler = ri?.activityInfo?.packageName
         if (ri != null && handler != null) {
             if (browsers(act).any { it.pkg == handler })
                 LogStore.prefs(act).edit().putString(KEY_LAST_BROWSER, handler).apply()
-            try { act.startActivity(intent); return }
+            try { act.startActivity(intent); EventLog.add(act, EventLog.BROWSER, "$what opened ($handler)"); return }
             catch (e: Exception) { EventLog.add(act, EventLog.BROWSER, "$what: could not open ($handler)", e) }
         }
-        // Nothing can open it: every browser (and Maps) is frozen or missing
-        val t = target(act)
-        if (t == null) { pick(act) { p -> openWith(act, url, p, what, reqIceBox) }; return }
-        openWith(act, url, t, what, reqIceBox)
+        // Nothing can open it: every browser is frozen or missing
+        val go = { p: String ->
+            val t = Target(p, listOf(url), what, null)
+            when (val st = frozenState(act, p)) {
+                null -> toastLog(act, "${label(act, p)} is not installed", "$what: $p is not installed")
+                0 -> start(act, t, null)
+                else -> viaIceBox(act, t, st, reqIceBox)
+            }
+        }
+        val b = target(act)
+        if (b == null) pick(act) { p -> go(p) } else go(b)
     }
 
     private fun viewIntent(url: String) =
         Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
 
-    private fun openWith(act: Activity, url: String, pkg: String, what: String, reqIceBox: Int) {
-        val name = label(act, pkg)
-        val state = frozenState(act, pkg)
-        if (state == null) { toastLog(act, "$name is not installed", "$what: $pkg is not installed"); return }
-        if (state == 0) { start(act, url, pkg, what, null); return }
+    /** [t] is frozen ([state]): defrost it with Ice Box (asking for the permission once), else fall back. */
+    private fun viaIceBox(act: Activity, t: Target, state: Int, reqIceBox: Int?) {
+        val name = label(act, t.pkg)
         if (!iceBoxInstalled(act)) {
-            toastLog(act, "$name is frozen and Ice Box is not available", "$what: $pkg frozen ($state), Ice Box not installed/enabled")
+            if (t.fallbackUrl != null) fallback(act, t, "$name is frozen and Ice Box is not available", null)
+            else toastLog(act, "$name is frozen and Ice Box is not available", "${t.what}: ${t.pkg} frozen ($state), Ice Box not installed/enabled")
             return
         }
         if (!hasIceBoxPermission(act)) {
-            pending = url to pkg
-            EventLog.add(act, EventLog.BROWSER, "$what: $pkg frozen ($state), asking for the Ice Box permission")
+            if (reqIceBox == null) {
+                toastLog(act, "$name is frozen (Ice Box not allowed)", "${t.what}: ${t.pkg} frozen ($state), no Ice Box permission")
+                return
+            }
+            pending = t
+            EventLog.add(act, EventLog.BROWSER, "${t.what}: ${t.pkg} frozen ($state), asking for the Ice Box permission")
             act.requestPermissions(arrayOf(ICEBOX_PERMISSION), reqIceBox)
             return
         }
-        defrostAndStart(act, url, pkg, state, what)
+        defrostAndStart(act, t, state)
     }
 
     /** Continue after the Ice Box permission dialog. */
     fun onPermissionResult(act: Activity) {
-        val (url, pkg) = pending ?: return
+        val t = pending ?: return
         pending = null
         if (!hasIceBoxPermission(act)) {
-            toastLog(act, "Ice Box permission denied – ${label(act, pkg)} stays frozen",
-                "Street View: Ice Box permission denied, $pkg not defrosted")
+            val why = "Ice Box permission denied – ${label(act, t.pkg)} stays frozen"
+            if (t.fallbackUrl != null) fallback(act, t, why, null)
+            else toastLog(act, why, "${t.what}: Ice Box permission denied, ${t.pkg} not defrosted")
             return
         }
         EventLog.add(act, EventLog.BROWSER, "Ice Box permission granted")
-        defrostAndStart(act, url, pkg, frozenState(act, pkg) ?: 0, "Street View")
+        val st = frozenState(act, t.pkg) ?: 0
+        if (st == 0) start(act, t, null) else defrostAndStart(act, t, st)
     }
 
-    private fun defrostAndStart(act: Activity, url: String, pkg: String, state: Int, what: String) {
+    private fun defrostAndStart(act: Activity, t: Target, state: Int) {
         val app = act.applicationContext
-        val name = label(act, pkg)
+        val name = label(act, t.pkg)
         Toast.makeText(act, "Defrosting $name with Ice Box…", Toast.LENGTH_SHORT).show()
         val started = System.currentTimeMillis()
         io.execute {
             var err: Exception? = null
-            try { defrost(app, pkg) } catch (e: Exception) { err = e }
-            var now = frozenState(app, pkg)
+            try { defrost(app, t.pkg) } catch (e: Exception) { err = e }
+            var now = frozenState(app, t.pkg)
             while (err == null && now != 0 && System.currentTimeMillis() - started < DEFROST_WAIT_MS) {
                 Thread.sleep(200)
-                now = frozenState(app, pkg)
+                now = frozenState(app, t.pkg)
             }
             val ms = System.currentTimeMillis() - started
             main.post {
                 when {
-                    err != null -> toastLog(act, "Ice Box could not defrost $name",
-                        "$what: Ice Box defrost of $pkg failed", err)
-                    now != 0 -> toastLog(act, "$name is still frozen (Ice Box did not defrost it)",
-                        "$what: $pkg still frozen ($now) ${ms} ms after asking Ice Box (mode ${iceBoxMode(app)})")
-                    else -> start(act, url, pkg, what, "defrosted by Ice Box (was $state) in $ms ms")
+                    err != null -> {
+                        EventLog.add(app, EventLog.BROWSER, "${t.what}: Ice Box defrost of ${t.pkg} failed", err)
+                        if (t.fallbackUrl != null) fallback(act, t, "Ice Box could not defrost $name", null)
+                        else Toast.makeText(act, "Ice Box could not defrost $name", Toast.LENGTH_LONG).show()
+                    }
+                    now != 0 -> {
+                        EventLog.add(app, EventLog.BROWSER,
+                            "${t.what}: ${t.pkg} still frozen ($now) $ms ms after asking Ice Box (mode ${iceBoxMode(app)})")
+                        if (t.fallbackUrl != null) fallback(act, t, "$name is still frozen", null)
+                        else Toast.makeText(act, "$name is still frozen (Ice Box did not defrost it)", Toast.LENGTH_LONG).show()
+                    }
+                    else -> start(act, t, "defrosted by Ice Box (was $state) in $ms ms")
                 }
             }
         }
     }
 
-    private fun start(act: Activity, url: String, pkg: String, what: String, note: String?) {
-        try {
-            act.startActivity(viewIntent(url).setPackage(pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            LogStore.prefs(act).edit().putString(KEY_LAST_BROWSER, pkg).apply()
-            EventLog.add(act, EventLog.BROWSER, "$what opened in $pkg" + (note?.let { ", $it" } ?: ""))
-        } catch (e: Exception) {
-            toastLog(act, "${label(act, pkg)} could not open the link", "$what: $pkg could not open the link", e)
+    private fun start(act: Activity, t: Target, note: String?) {
+        var last: Exception? = null
+        for (u in t.uris) {
+            try {
+                val i = Intent(Intent.ACTION_VIEW, Uri.parse(u)).setPackage(t.pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                act.startActivity(i)
+                if (t.pkg != MAPS) LogStore.prefs(act).edit().putString(KEY_LAST_BROWSER, t.pkg).apply()
+                EventLog.add(act, EventLog.BROWSER, "${t.what} opened in ${t.pkg}" +
+                    (if (u.startsWith("google.streetview")) " (Street View intent)" else "") + (note?.let { ", $it" } ?: ""))
+                return
+            } catch (e: Exception) { last = e }
         }
+        EventLog.add(act, EventLog.BROWSER, "${t.what}: ${t.pkg} could not open the link", last)
+        if (t.fallbackUrl != null) fallback(act, t, "${label(act, t.pkg)} could not open Street View", null)
+        else Toast.makeText(act, "${label(act, t.pkg)} could not open the link", Toast.LENGTH_LONG).show()
     }
 
     private fun toastLog(ctx: Context, toast: String, log: String, e: Throwable? = null) {
@@ -272,7 +331,7 @@ object BrowserOpener {
         val names = (if (auto) listOf("Automatic (last browser used)") else emptyList()) +
             list.map { it.label + if (it.frozen != 0) "  (frozen)" else "" }
         AlertDialog.Builder(act)
-            .setTitle("Open Street View with")
+            .setTitle("Fallback browser for Street View")
             .setItems(names.toTypedArray()) { _, which ->
                 if (auto && which == 0) { setChosen(act, null); done(""); return@setItems }
                 val b = list[which - if (auto) 1 else 0]

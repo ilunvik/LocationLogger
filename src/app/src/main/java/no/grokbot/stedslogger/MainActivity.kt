@@ -269,8 +269,8 @@ class MainActivity : Activity() {
     private fun setupStreetView() {
         val sha1 = StreetView.certSha1Display(this) ?: "(could not read)"
         findViewById<TextView>(R.id.streetViewHelp).text =
-            "Shows a Street View image on each stop with coordinates; tap it to open Street View there in Google Maps " +
-            "or the browser (a browser frozen by Ice Box is defrosted first). " +
+            "Shows a Street View image on each stop with coordinates; tap it to open Street View there in the Google Maps app " +
+            "(defrosted with Ice Box first if it is frozen; a browser is used if Maps cannot be opened). " +
             "Needs your own Google API key (stored only on this phone):\n" +
             "1. Google Cloud Console → create a project (billing required)\n" +
             "2. Enable \"Street View Static API\"\n" +
@@ -364,7 +364,7 @@ class MainActivity : Activity() {
 
     /**
      * Square image (96 dp, rounded, right of the stop's text) for a stop: the Place's / spot's stored image, or Street View.
-     * Tap opens Street View in Google Maps or the browser (via Ice Box if frozen); long-press opens the image menu.
+     * Tap opens Street View in the Google Maps app (via Ice Box if frozen; browser as fallback); long-press opens the image menu.
      */
     private fun streetViewImage(slot: StreetView.Slot, lat: Double, lon: Double): android.view.View? {
         if (StreetView.isHidden(this, slot)) return null
@@ -382,11 +382,12 @@ class MainActivity : Activity() {
                     outline.setRoundRect(0, 0, view.width, view.height, r)
             }
             clipToOutline = true
-            contentDescription = "Street View – open in Google Maps or the browser"
+            contentDescription = "Street View – open in Google Maps"
             tag = slot.id
             setOnClickListener {
-                // 1.30: Street View in Google Maps / the browser; a browser frozen by Ice Box is defrosted first
-                BrowserOpener.open(this@MainActivity, StreetView.panoUrl(this@MainActivity, slot, lat, lon), "Street View", REQ_ICEBOX)
+                // 1.31: Street View in the Google Maps app (defrosted by Ice Box if frozen); browser as fallback
+                BrowserOpener.openStreetView(this@MainActivity, lat, lon, StreetView.heading(this@MainActivity, slot),
+                    StreetView.panoUrl(this@MainActivity, slot, lat, lon), REQ_ICEBOX)
             }
             setOnLongClickListener { imageMenu(slot, lat, lon); true }
         }

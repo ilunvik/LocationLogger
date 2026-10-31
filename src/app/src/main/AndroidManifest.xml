@@ -24,7 +24,7 @@
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
-    <!-- 1.30: Ice Box SDK – defrost a frozen browser for Street View links (the user allows it once) -->
+    <!-- 1.30/1.31: Ice Box SDK – defrost a frozen Google Maps (or fallback browser) for Street View (the user allows it once) -->
     <uses-permission android:name="com.catchingnow.icebox.SDK" />
     <uses-permission android:name="com.catchingnow.icebox.STATE" />
 
@@ -33,8 +33,9 @@
         <package android:name="moe.shizuku.privileged.api" />
         <!-- 1.29: Tailscale watch (installed? launch intent for the notification, CONNECT_VPN broadcast) -->
         <package android:name="com.tailscale.ipn" />
-        <!-- 1.30: Ice Box and the browsers it may have frozen -->
+        <!-- 1.30/1.31: Ice Box, Google Maps and the browsers it may have frozen -->
         <package android:name="com.catchingnow.icebox" />
+        <package android:name="com.google.android.apps.maps" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />

@@ -348,7 +348,7 @@
                         android:textSize="13sp" />
                 </LinearLayout>
 
-                <!-- 1.30: browser for Street View links (defrosted with Ice Box when frozen) -->
+                <!-- 1.31: Google Maps / Ice Box state and the fallback browser for Street View -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

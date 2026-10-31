@@ -70,8 +70,11 @@ object StreetView {
      * Street View of a spot in Google Maps (app or browser), no API key: the panorama nearest to
      * [lat],[lon], looking the way the stop's image does when a direction was chosen (since 1.30).
      */
+    fun heading(ctx: Context, slot: Slot): Int? =
+        slotHeading(ctx, slot).takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull()
+
     fun panoUrl(ctx: Context, slot: Slot, lat: Double, lon: Double): String {
-        val h = slotHeading(ctx, slot).takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull()
+        val h = heading(ctx, slot)
         return String.format(Locale.US, "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=%.6f,%.6f", lat, lon) +
             (h?.let { "&heading=$it" } ?: "")
     }
