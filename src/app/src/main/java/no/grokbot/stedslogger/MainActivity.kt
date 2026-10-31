@@ -29,6 +29,7 @@ class MainActivity : Activity() {
         private const val REQ_FOREGROUND = 1
         private const val REQ_BACKGROUND = 2
         private const val REQ_PICK_IMAGE = 3
+        private const val REQ_ICEBOX = 4
         private const val STATE_PICK_ID = "pick_slot_id"
         private const val STATE_PICK_LABEL = "pick_slot_label"
         private const val MAX_VISITS = 300
@@ -268,13 +269,18 @@ class MainActivity : Activity() {
     private fun setupStreetView() {
         val sha1 = StreetView.certSha1Display(this) ?: "(could not read)"
         findViewById<TextView>(R.id.streetViewHelp).text =
-            "Shows a Street View image on each stop with coordinates; tap it to open the spot in Google Maps. " +
+            "Shows a Street View image on each stop with coordinates; tap it to open Street View there in Google Maps " +
+            "or the browser (a browser frozen by Ice Box is defrosted first). " +
             "Needs your own Google API key (stored only on this phone):\n" +
             "1. Google Cloud Console → create a project (billing required)\n" +
             "2. Enable \"Street View Static API\"\n" +
             "3. Credentials → Create API key\n" +
             "4. Restrict it to Android apps: package $packageName, SHA-1 $sha1\n" +
             "5. Restrict the API to Street View Static API"
+        showBrowserStatus()
+        findViewById<Button>(R.id.btnBrowser).setOnClickListener {
+            BrowserOpener.pick(this, auto = true) { showBrowserStatus() }
+        }
         val edit = findViewById<EditText>(R.id.editApiKey)
         val keyStatus = findViewById<TextView>(R.id.apiKeyStatus)
         fun show() { keyStatus.text = if (StreetView.apiKey(this) != null) "Key saved" else "No key" }
@@ -358,7 +364,7 @@ class MainActivity : Activity() {
 
     /**
      * Square image (96 dp, rounded, right of the stop's text) for a stop: the Place's / spot's stored image, or Street View.
-     * Tap opens Google Maps with a pin; long-press opens the image menu.
+     * Tap opens Street View in Google Maps or the browser (via Ice Box if frozen); long-press opens the image menu.
      */
     private fun streetViewImage(slot: StreetView.Slot, lat: Double, lon: Double): android.view.View? {
         if (StreetView.isHidden(this, slot)) return null
@@ -376,11 +382,11 @@ class MainActivity : Activity() {
                     outline.setRoundRect(0, 0, view.width, view.height, r)
             }
             clipToOutline = true
-            contentDescription = "Street View – open in Google Maps"
+            contentDescription = "Street View – open in Google Maps or the browser"
             tag = slot.id
             setOnClickListener {
-                try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(StreetView.mapsUrl(lat, lon)))) }
-                catch (e: Exception) { Toast.makeText(this@MainActivity, "No app can open the map", Toast.LENGTH_SHORT).show() }
+                // 1.30: Street View in Google Maps / the browser; a browser frozen by Ice Box is defrosted first
+                BrowserOpener.open(this@MainActivity, StreetView.panoUrl(this@MainActivity, slot, lat, lon), "Street View", REQ_ICEBOX)
             }
             setOnLongClickListener { imageMenu(slot, lat, lon); true }
         }
@@ -579,6 +585,7 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_ICEBOX) { BrowserOpener.onPermissionResult(this); showBrowserStatus(); return }
         when (requestCode) {
             REQ_FOREGROUND -> {
                 if (hasForegroundLocation()) {
@@ -607,6 +614,11 @@ class MainActivity : Activity() {
             }
         }
         refresh()
+    }
+
+    /** Browser / Ice Box line under Street View in Settings (1.30). */
+    private fun showBrowserStatus() {
+        findViewById<TextView>(R.id.browserStatus).text = BrowserOpener.statusLine(this)
     }
 
     // ---------- UI ----------

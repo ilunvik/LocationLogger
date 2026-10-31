@@ -24,11 +24,22 @@
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- 1.30: Ice Box SDK – defrost a frozen browser for Street View links (the user allows it once) -->
+    <uses-permission android:name="com.catchingnow.icebox.SDK" />
+    <uses-permission android:name="com.catchingnow.icebox.STATE" />
+
     <!-- 1.27: see whether the Shizuku app is installed (Android 11+ package visibility) -->
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
         <!-- 1.29: Tailscale watch (installed? launch intent for the notification, CONNECT_VPN broadcast) -->
         <package android:name="com.tailscale.ipn" />
+        <!-- 1.30: Ice Box and the browsers it may have frozen -->
+        <package android:name="com.catchingnow.icebox" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 
     <application
@@ -71,6 +82,11 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- 1.30: identifies this app to Ice Box (SDK "authorize" PendingIntent); does nothing -->
+        <receiver
+            android:name=".IceBoxStateReceiver"
+            android:exported="false" />
 
         <!-- 1.27: receives the Shizuku binder so the app can tell whether Shizuku runs (ping only, no permission requested) -->
         <provider

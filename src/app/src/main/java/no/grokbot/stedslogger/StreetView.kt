@@ -66,6 +66,16 @@ object StreetView {
     fun mapsUrl(lat: Double, lon: Double) =
         String.format(Locale.US, "https://www.google.com/maps/search/?api=1&query=%.6f,%.6f", lat, lon)
 
+    /**
+     * Street View of a spot in Google Maps (app or browser), no API key: the panorama nearest to
+     * [lat],[lon], looking the way the stop's image does when a direction was chosen (since 1.30).
+     */
+    fun panoUrl(ctx: Context, slot: Slot, lat: Double, lon: Double): String {
+        val h = slotHeading(ctx, slot).takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull()
+        return String.format(Locale.US, "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=%.6f,%.6f", lat, lon) +
+            (h?.let { "&heading=$it" } ?: "")
+    }
+
     /** SHA-1 of this app's signing certificate, uppercase hex without colons. */
     fun certSha1(ctx: Context): String? = try {
         val pm = ctx.packageManager
