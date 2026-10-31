@@ -145,7 +145,7 @@ class WebLookupActivity : Activity() {
             val source = if (site == SITE_1881) NumberLookup.SRC_1881 else NumberLookup.SRC_GS
             AlertDialog.Builder(this)
                 .setTitle(if (p?.name != null) "Navn funnet på siden" else "Fant ikke navnet automatisk")
-                .setMessage("Lagres som oppslag for ${Phone.pretty(k)} (kilde: $source). Du kan rette navnet.")
+                .setMessage("Lagres som oppslag for ${Phone.pretty(k)} (kilde: $source). Du kan rette navnet.\n«Lagre + kontakter» lagrer i: ${Contacts.current(this).label}")
                 .setView(box)
                 .setPositiveButton("Lagre") { _, _ -> save(edit.text.toString(), source, addContact = false) }
                 .setNeutralButton("Lagre + kontakter") { _, _ -> save(edit.text.toString(), source, addContact = true) }

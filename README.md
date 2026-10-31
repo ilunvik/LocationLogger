@@ -271,7 +271,12 @@ number sent to the directory lookup.
 - **Add to contacts** – **+ Legg til i kontakter** on an entry with a looked-up name creates a new phone
   contact (name, number, note "Oppslag via LocationLogger (source, date)"). With *Legg automatisk til
   oppslag i kontakter* (off by default) this happens after every successful lookup. An existing contact
-  is never changed or overwritten.
+  is never changed or overwritten. **Kontaktlager** (1.35, button under that setting) picks where new contacts are
+  saved: any account whose contacts sync adapter supports uploading (Google, Samsung account, Exchange …;
+  chat apps and SIM cards are left out) or *Telefon (lokal)* (Samsung's phone storage, else no account).
+  Default: the first Google account, else the phone. If the chosen account disappears, the default is
+  used and the Log says so; if an account refuses the insert, the contact is saved on the phone. Accounts
+  are visible to the app through the contacts permission (no extra permission on Android 8+).
 - **Call recordings** – ordinary apps cannot record the other party of a call on modern Android
   (`VOICE_CALL` is reserved for system apps), so the app plays recordings saved by other recorders,
   found through MediaStore (`READ_MEDIA_AUDIO`, or `READ_EXTERNAL_STORAGE` on Android ≤ 12):

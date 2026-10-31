@@ -309,7 +309,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         val number = r.item.number ?: return
         AlertDialog.Builder(act)
             .setTitle("Legg til i kontakter?")
-            .setMessage("Ny kontakt «$name» med nummeret ${Phone.pretty(number)} (notat: Oppslag via LocationLogger). Eksisterende kontakter endres aldri.")
+            .setMessage("Ny kontakt «$name» med nummeret ${Phone.pretty(number)} (notat: Oppslag via LocationLogger).\n\nLagres i: ${Contacts.current(act).label} (endres under Innstillinger › Kontaktlager).\n\nEksisterende kontakter endres aldri.")
             .setPositiveButton("Legg til") { _, _ ->
                 val err = Contacts.add(act, number, name, lk.source)
                 Toast.makeText(act, err ?: "Lagt til i kontakter", Toast.LENGTH_LONG).show()

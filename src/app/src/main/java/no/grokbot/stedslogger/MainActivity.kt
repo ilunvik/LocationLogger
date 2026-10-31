@@ -641,6 +641,34 @@ class MainActivity : Activity() {
     // ---------- calls and SMS (1.32) ----------
 
     /** Runtime permissions for the Samtaler tab, popup / read-aloud, lookup and recordings. */
+    /** 1.35: where new contacts are saved (accounts are visible to the app through READ_CONTACTS). */
+    private fun pickContactStore() {
+        if (!granted(Manifest.permission.READ_CONTACTS) || !granted(Manifest.permission.WRITE_CONTACTS)) {
+            AlertDialog.Builder(this)
+                .setTitle("Tilgang til kontakter")
+                .setMessage("For å vise kontoene du kan lagre kontakter i (Google, Samsung, telefonen) trenger appen tilgang til kontakter. Ingenting sendes noe sted.")
+                .setPositiveButton("Fortsett") { _, _ -> requestPermissions(arrayOf(Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS), REQ_COMMS) }
+                .setNegativeButton("Ikke nå", null)
+                .show()
+            return
+        }
+        Thread {
+            val stores = Contacts.stores(this)
+            val cur = Contacts.current(this)
+            val def = Contacts.defaultStore(this)
+            runOnUiThread {
+                val labels = stores.map { s -> s.label + if (s.id == def.id) "  (standard)" else "" }.toTypedArray()
+                AlertDialog.Builder(this)
+                    .setTitle("Lagre nye kontakter i")
+                    .setSingleChoiceItems(labels, stores.indexOfFirst { it.id == cur.id }) { d, i ->
+                        Contacts.choose(this, stores[i]); d.dismiss(); refresh()
+                    }
+                    .setNegativeButton("Avbryt", null)
+                    .show()
+            }
+        }.start()
+    }
+
     private fun commPermissions(): List<String> = buildList {
         add(Manifest.permission.READ_PHONE_STATE)
         add(Manifest.permission.READ_CALL_LOG)
@@ -728,6 +756,7 @@ class MainActivity : Activity() {
         bind(R.id.checkSrc1881, NumberLookup.KEY_SRC_1881, true)
         bind(R.id.checkSrcGsPersons, NumberLookup.KEY_SRC_GS_PERSONS, true)
         bind(R.id.checkSrcGsCompanies, NumberLookup.KEY_SRC_GS_COMPANIES, true)
+        findViewById<Button>(R.id.btnContactStore).setOnClickListener { pickContactStore() }
         bind(R.id.checkLookupContact, NumberLookup.KEY_AUTO_CONTACT, false) { on ->
             if (on && !granted(Manifest.permission.WRITE_CONTACTS)) askCommPermissions()
         }
@@ -801,6 +830,7 @@ class MainActivity : Activity() {
                 "\n" + ShizukuWatch.statusLine(this) + "\n" + TailscaleWatch.statusLine(this)
         findViewById<TextView>(R.id.commPermStatus).text = commStatusText()
         findViewById<Button>(R.id.btnCommPermsSettings).isEnabled = commPermissions().any { !granted(it) }
+        findViewById<Button>(R.id.btnContactStore).text = "Kontaktlager: " + try { Contacts.current(this).label } catch (_: Exception) { "?" }
         findViewById<TextView>(R.id.lookupStatus).text = "Oppslag lagret: ${NumberLookup.cacheSize(this)}" +
             (NumberLookup.status(this)?.let { " · $it" } ?: "")
         lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")

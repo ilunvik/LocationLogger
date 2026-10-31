@@ -587,6 +587,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Legg automatisk til oppslag i kontakter" />
+                <Button
+                    android:id="@+id/btnContactStore"
+                    style="?android:attr/buttonStyleSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="32dp"
+                    android:textAllCaps="false"
+                    android:text="Kontaktlager: …" />
                 <TextView
                     android:id="@+id/lookupStatus"
                     android:layout_width="match_parent"
