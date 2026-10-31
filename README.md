@@ -268,6 +268,13 @@ number sent to the directory lookup.
   the number inside the app, so a Cloudflare check can be completed by hand (the cookies are shared with
   the background lookup, which lifts the pause). **Bruk dette navnet** reads the matching name from the
   page (or lets you type one) and saves it as the lookup result, optionally adding it to the contacts.
+- **Oppslag tab (1.36)** – the web view is a permanent tab. Type or paste a number (or switch the field to
+  *abc* and type a name) and pick **1881**, **Gulesider personer** or **Gulesider bedrifter**; a back /
+  forward / reload / address bar sits above the page (only 1881.no and gulesider.no are opened). **Bruk
+  dette navnet** and **Lagre + kontakter** are enabled while the page is about a number. The page is kept
+  when switching tabs and when the Fold is folded or unfolded (MainActivity handles those configuration
+  changes itself); Android back steps through the page history. **🌐 Nettvisning** on a call row switches
+  to this tab with the number filled in and loaded.
 - **Add to contacts** – **+ Legg til i kontakter** on an entry with a looked-up name creates a new phone
   contact (name, number, note "Oppslag via LocationLogger (source, date)"). With *Legg automatisk til
   oppslag i kontakter* (off by default) this happens after every successful lookup. An existing contact
@@ -443,7 +450,7 @@ src/                      Gradle project
       Comms.kt, CommsTab.kt  calls, SMS and MMS (Samtaler tab)
       MmsWatch.kt          new incoming MMS (popup / read aloud)
       MmsMedia.kt          MMS thumbnails, image viewer, open attachments (PartProvider)
-      WebLookup.kt, WebLookupActivity.kt  number lookup in a WebView (background and visible)
+      WebLookup.kt, LookupTab.kt         number lookup in a WebView (background, and the Oppslag tab)
     src/main/assets/lookup_extract.js  reads the matching entry from a 1881 / gulesider page
       NumberLookup.kt, Contacts.kt, Phone.kt  number lookup, add to contacts, number formatting
       Announcer.kt, CommReceiver.kt  popup and read-aloud, call / SMS receivers

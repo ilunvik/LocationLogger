@@ -34,6 +34,7 @@ class MainActivity : Activity() {
         private const val REQ_REC_AUDIO = 6
         const val EXTRA_TAB = "tab"
         const val TAB_COMMS = 3
+        const val TAB_WEB = 4
         private const val STATE_PICK_ID = "pick_slot_id"
         private const val STATE_PICK_LABEL = "pick_slot_label"
         private const val MAX_VISITS = 300
@@ -89,9 +90,15 @@ class MainActivity : Activity() {
         findViewById<android.view.View>(R.id.tabComms).setOnClickListener {
             if (tab != 1 || confirmLeavePlaces { showTab(TAB_COMMS) }) showTab(TAB_COMMS)
         }
+        findViewById<android.view.View>(R.id.tabWeb).setOnClickListener {
+            if (tab != 1 || confirmLeavePlaces { showTab(TAB_WEB) }) showTab(TAB_WEB)
+        }
         logTab = LogTab(this)
         commsTab = CommsTab(this) { askCommPermissions() }
+        lookupTab = LookupTab(this)
+        lookupTab.restore(savedInstanceState)
         showTab(intent?.getIntExtra(EXTRA_TAB, -1)?.takeIf { it >= 0 } ?: LogStore.prefs(this).getInt(KEY_TAB, 0))
+        if (savedInstanceState == null) openLookupFrom(intent)
         visits = findViewById(R.id.visits)
         btnBackground = findViewById(R.id.btnBackground)
         btnBattery = findViewById(R.id.btnBattery)
@@ -145,6 +152,7 @@ class MainActivity : Activity() {
         uiHandler.post(minuteTick) // refreshes now and every minute (running duration)
         if (tab == 2) logTab.load()
         if (tab == TAB_COMMS) commsTab.load()
+        if (tab == TAB_WEB) lookupTab.show()
         try { MmsWatch.register(this) } catch (_: Exception) {} // 1.33: no-op until READ_SMS is granted
     }
 
@@ -152,12 +160,26 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         val t = intent.getIntExtra(EXTRA_TAB, -1)
-        if (t >= 0 && (tab != 1 || !placesDirty())) showTab(t)
+        if (t >= 0 && (tab != 1 || !placesDirty())) { showTab(t); openLookupFrom(intent) }
+    }
+
+    /** 1.36: "🌐 Nettvisning" from a call row: number prefilled and loaded in the Oppslag tab. */
+    private fun openLookupFrom(i: Intent?) {
+        val n = i?.getStringExtra(LookupTab.EXTRA_NUMBER) ?: return
+        if (tab != TAB_WEB) return
+        lookupTab.openNumber(n, i.getIntExtra(LookupTab.EXTRA_SITE, LookupTab.SITE_1881))
+        i.removeExtra(LookupTab.EXTRA_NUMBER)
+    }
+
+    override fun onDestroy() {
+        lookupTab.destroy()
+        super.onDestroy()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putLong(STATE_MANUAL_START, manualStart)
+        lookupTab.save(outState)
         pickSlot?.let { outState.putString(STATE_PICK_ID, it.id); outState.putString(STATE_PICK_LABEL, it.label) }
     }
 
@@ -200,6 +222,7 @@ class MainActivity : Activity() {
         LogStore.prefs(this).unregisterOnSharedPreferenceChangeListener(prefsListener)
         uiHandler.removeCallbacks(minuteTick)
         uiHandler.removeCallbacks(manualExpire)
+        lookupTab.hide()
         super.onPause()
     }
 
@@ -208,21 +231,23 @@ class MainActivity : Activity() {
     private var tab = 0
     private lateinit var logTab: LogTab
     private lateinit var commsTab: CommsTab
+    private lateinit var lookupTab: LookupTab
 
     private fun showTab(index: Int) {
-        tab = if (index in 0..3) index else 0
-        val pages = listOf(R.id.pageVisits, R.id.pageSettings, R.id.pageLog, R.id.pageComms)
-        val labels = listOf(R.id.tabVisitsLabel, R.id.tabSettingsLabel, R.id.tabLogLabel, R.id.tabCommsLabel)
-        val lines = listOf(R.id.tabVisitsLine, R.id.tabSettingsLine, R.id.tabLogLine, R.id.tabCommsLine)
+        tab = if (index in 0..4) index else 0
+        val pages = listOf(R.id.pageVisits, R.id.pageSettings, R.id.pageLog, R.id.pageComms, R.id.pageWeb)
+        val labels = listOf(R.id.tabVisitsLabel, R.id.tabSettingsLabel, R.id.tabLogLabel, R.id.tabCommsLabel, R.id.tabWebLabel)
+        val lines = listOf(R.id.tabVisitsLine, R.id.tabSettingsLine, R.id.tabLogLine, R.id.tabCommsLine, R.id.tabWebLine)
         val on = 0xFF1565C0.toInt()
         val off = 0xFF757575.toInt()
-        for (i in 0..3) {
+        for (i in 0..4) {
             findViewById<android.view.View>(pages[i]).visibility = if (tab == i) android.view.View.VISIBLE else android.view.View.GONE
             findViewById<TextView>(labels[i]).setTextColor(if (tab == i) on else off)
             findViewById<android.view.View>(lines[i]).visibility = if (tab == i) android.view.View.VISIBLE else android.view.View.INVISIBLE
         }
         if (tab == 2) logTab.load()
         if (tab == TAB_COMMS) commsTab.load()
+        if (tab == TAB_WEB) lookupTab.show() else lookupTab.hide()
         if (tab != 1) {
             currentFocus?.let {
                 (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(it.windowToken, 0)
@@ -235,6 +260,7 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (tab == 1) { if (confirmLeavePlaces { showTab(0) }) showTab(0) }
+        else if (tab == TAB_WEB) { if (!lookupTab.back()) showTab(0) }
         else if (tab == 2 || tab == TAB_COMMS) showTab(0)
         else @Suppress("DEPRECATION") super.onBackPressed()
     }

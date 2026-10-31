@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
  * and persistent cookies loads the directory page, waits until a Cloudflare check ("Just a moment...") is
  * over, and reads the result with assets/lookup_extract.js (JSON-LD, 1881 result boxes / detail page,
  * result cards; the entry must carry exactly the number searched for). Cookies are shared with the visible
- * [WebLookupActivity], so a check the user completes there also helps later background lookups.
+ * [LookupTab], so a check the user completes there also helps later background lookups.
  * Only the lookup URL (which contains the number) is sent.
  */
 object WebLookup {
