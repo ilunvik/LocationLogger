@@ -145,6 +145,7 @@ class MainActivity : Activity() {
         uiHandler.post(minuteTick) // refreshes now and every minute (running duration)
         if (tab == 2) logTab.load()
         if (tab == TAB_COMMS) commsTab.load()
+        try { MmsWatch.register(this) } catch (_: Exception) {} // 1.33: no-op until READ_SMS is granted
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -689,6 +690,7 @@ class MainActivity : Activity() {
         EventLog.add(this, EventLog.SERVICE, "Tilganger (samtaler/SMS): ${permissions.size - denied.size} av ${permissions.size} gitt" +
             if (denied.isNotEmpty()) " – mangler ${denied.joinToString { it.substringAfterLast('.') }}" else "")
         Phone.clearCache()
+        try { MmsWatch.register(this) } catch (_: Exception) {}
         if (requestCode == REQ_REC_AUDIO && denied.isNotEmpty()) {
             LogStore.prefs(this).edit().putBoolean(CallRecorderService.KEY_ENABLED, false).apply()
             findViewById<CheckBox>(R.id.checkRecExperimental).isChecked = false

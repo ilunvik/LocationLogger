@@ -7,6 +7,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.HorizontalScrollView
+import android.widget.ImageView
+import android.widget.ScrollView
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -203,9 +206,18 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                     dur(it.durationS).ifEmpty { null }).joinToString(" · ")
                 textSize = 12.5f; setTextColor(0xFF616161.toInt())
             })
+            it.subject?.let { sub -> col.addView(TextView(act).apply {
+                text = "«$sub»"; textSize = 13f; setTypeface(typeface, Typeface.ITALIC); maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }) }
             if (!it.text.isNullOrBlank()) col.addView(TextView(act).apply {
                 text = it.text; textSize = 13f; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
             })
+            if (it.others.isNotEmpty()) col.addView(TextView(act).apply {
+                text = groupLine(it, 3); textSize = 12f; setTextColor(0xFF616161.toInt()); maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+            if (it.parts.isNotEmpty()) col.addView(attachmentStrip(r, dp(72), 4))
             val buttons = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
             r.recs.forEachIndexed { i, rec ->
                 buttons.addView(small(if (r.recs.size > 1) "▶ Opptak ${i + 1}" else "▶ Opptak") { Player.show(act, rec, title(r)) })
@@ -219,6 +231,40 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             if (buttons.childCount > 0) col.addView(buttons)
             return row
         }
+    }
+
+    /** "Gruppe: Kari, 912 34 567 +2" (other participants of a group MMS). */
+    private fun groupLine(it: CommItem, max: Int): String {
+        val names = it.others.map { n -> Phone.contactName(act, n) ?: NumberLookup.cached(act, n)?.name ?: Phone.pretty(n) }
+        val head = if (it.dir == CommItem.Dir.OUT) "Til" else "Gruppe (${it.others.size + 1})"
+        val shownNames = names.take(max).joinToString(", ")
+        return "$head: $shownNames" + if (names.size > max) " +${names.size - max}" else ""
+    }
+
+    /** Image thumbnails (tap = fullscreen) and chips for video / audio / vCard / other (tap = open with …). */
+    private fun attachmentStrip(r: Row, size: Int, maxImages: Int): View {
+        val strip = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(4), 0, dp(2)) }
+        val imgs = r.item.images
+        imgs.take(maxImages).forEach { part ->
+            val iv = ImageView(act).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setBackgroundColor(0xFFE0E0E0.toInt())
+                contentDescription = "Bilde"
+                layoutParams = LinearLayout.LayoutParams(size, size).apply { marginEnd = dp(4) }
+                isFocusable = false
+                setOnClickListener { MmsMedia.showImage(act, part, title(r)) }
+            }
+            val bmp = MmsMedia.cached(part)
+            if (bmp != null) iv.setImageBitmap(bmp)
+            else MmsMedia.thumb(act, part, dp(160)) { b ->
+                if (b == null) return@thumb
+                if (iv.isAttachedToWindow) iv.setImageBitmap(b) else (list.adapter as BaseAdapter).notifyDataSetChanged()
+            }
+            strip.addView(iv)
+        }
+        if (imgs.size > maxImages) strip.addView(small("+${imgs.size - maxImages} bilder") { details(r) })
+        r.item.parts.filter { !it.isImage }.forEach { part -> strip.addView(small(part.label()) { MmsMedia.open(act, part) }) }
+        return HorizontalScrollView(act).apply { isHorizontalScrollBarEnabled = false; addView(strip) }
     }
 
     private fun lookupNow(r: Row) {
@@ -258,12 +304,46 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         val msg = buildString {
             append(kindText(it)).append(" · ").append(when_(it.at))
             dur(it.durationS).takeIf { s -> s.isNotEmpty() }?.let { s -> append(" · ").append(s) }
-            append("\nNummer: ").append(Phone.pretty(it.number))
+            append(if (it.kind == CommItem.Kind.MMS && it.dir == CommItem.Dir.OUT) "\nTil: " else if (it.kind == CommItem.Kind.CALL) "\nNummer: " else "\nFra: ")
+                .append(Phone.pretty(it.number))
             r.contact?.let { c -> append("\nKontakt: ").append(c) }
             r.lookup?.let { l -> append("\nOppslag (").append(l.source).append("): ").append(l.name ?: "ingen treff") }
+            if (it.others.isNotEmpty()) {
+                append(if (it.dir == CommItem.Dir.OUT) "\nOgså til:" else "\nAndre i gruppen:")
+                it.others.forEach { n ->
+                    append("\n  • ").append(Phone.pretty(n))
+                    (Phone.contactName(act, n) ?: NumberLookup.cached(act, n)?.name)?.let { nm -> append(" – ").append(nm) }
+                }
+            }
             if (r.recs.isNotEmpty()) append("\nOpptak: ").append(r.recs.size).append(" (").append(r.recs.joinToString { x -> x.source }).append(")")
+            it.subject?.let { sub -> append("\n\nEmne: ").append(sub) }
             if (!it.text.isNullOrBlank()) append("\n\n").append(it.text)
+            if (it.parts.isNotEmpty()) append("\n\nVedlegg: ").append(Comms.attachmentSummary(it.parts)?.removePrefix("med ") ?: "")
         }
-        AlertDialog.Builder(act).setTitle(title(r)).setMessage(msg).setPositiveButton("OK", null).show()
+        val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(12), dp(20), dp(8)) }
+        box.addView(TextView(act).apply { text = msg; textSize = 14f; setTextIsSelectable(true) })
+        if (it.parts.isNotEmpty()) {
+            val w = act.resources.displayMetrics.widthPixels - dp(100)
+            it.images.forEach { part ->
+                val iv = ImageView(act).apply {
+                    adjustViewBounds = true; scaleType = ImageView.ScaleType.FIT_START
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) }
+                    minimumHeight = dp(60); setBackgroundColor(0xFFF5F5F5.toInt())
+                    setOnClickListener { MmsMedia.showImage(act, part, title(r)) }
+                }
+                Thread {
+                    val b = MmsMedia.decode(act, part.uri, w)
+                    act.runOnUiThread { if (b != null) { iv.setImageBitmap(b); iv.setBackgroundColor(0) } else iv.visibility = View.GONE }
+                }.start()
+                box.addView(iv)
+            }
+            val chips = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
+            it.parts.filter { p -> !p.isImage }.forEach { part -> chips.addView(small(part.label()) { MmsMedia.open(act, part) }) }
+            if (chips.childCount > 0) box.addView(HorizontalScrollView(act).apply { addView(chips) })
+        }
+        val buttons = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
+        r.recs.forEachIndexed { i, rec -> buttons.addView(small(if (r.recs.size > 1) "▶ Opptak ${i + 1}" else "▶ Opptak") { Player.show(act, rec, title(r)) }) }
+        if (buttons.childCount > 0) box.addView(buttons)
+        AlertDialog.Builder(act).setTitle(title(r)).setView(ScrollView(act).apply { addView(box) }).setPositiveButton("OK", null).show()
     }
 }

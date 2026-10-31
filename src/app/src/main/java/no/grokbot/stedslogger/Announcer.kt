@@ -36,6 +36,16 @@ object Announcer {
         return null to null
     }
 
+    /** For the log: "Name (kontakt)", "Name (oppslag, …123)" or "…123". */
+    fun who(ctx: Context, raw: String?): String {
+        val (name, src) = label(ctx, raw)
+        return when {
+            name != null && src != null -> "$name (oppslag, ${Phone.masked(raw)})"
+            name != null -> "$name (kontakt)"
+            else -> Phone.masked(raw)
+        }
+    }
+
     private fun channels(ctx: Context): NotificationManager {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         if (nm.getNotificationChannel(CHANNEL_POPUP) == null) {
@@ -119,6 +129,28 @@ object Announcer {
         } catch (e: Exception) { EventLog.error(ctx, "Popup feilet", e) }
     }
 
+    /** MMS popup (1.33): text, "med bilde"/"med vedlegg", subject and the first image as a big picture. */
+    fun popupMms(ctx: Context, raw: String?, text: String?, att: String?, subject: String?, image: MmsPart?) {
+        if (!popupOn(ctx)) return
+        try {
+            val (t, sub) = title(ctx, raw)
+            val line = listOfNotNull(subject?.let { "«$it»" }, text, att?.let { "($it)" }).joinToString(" ").ifEmpty { "MMS" }
+            val b = Notification.Builder(ctx, CHANNEL_POPUP)
+                .setSmallIcon(android.R.drawable.sym_action_email)
+                .setContentTitle("🖼 $t")
+                .setContentText(line)
+                .setCategory(Notification.CATEGORY_MESSAGE)
+                .setContentIntent(openApp(ctx, 4))
+                .setTimeoutAfter(10 * 60_000L)
+                .setAutoCancel(true)
+            val bmp = image?.let { MmsMedia.decode(ctx, it.uri, 720) }
+            if (bmp != null) b.setLargeIcon(bmp).setStyle(Notification.BigPictureStyle().bigPicture(bmp)
+                .setSummaryText(listOfNotNull(sub, line).joinToString(" · ")))
+            else b.setStyle(Notification.BigTextStyle().bigText(listOfNotNull(sub, line).joinToString("\n")))
+            channels(ctx).notify(ID_SMS_BASE + 0x100 + (Phone.key(raw).hashCode() and 0xff), b.build())
+        } catch (e: Exception) { EventLog.error(ctx, "Popup feilet", e) }
+    }
+
     // ---------- text-to-speech ----------
 
     private var tts: TextToSpeech? = null
@@ -175,5 +207,15 @@ object Announcer {
         val who = spokenName(ctx, raw)
         speak(ctx, if (ttsSmsText(ctx) && !body.isNullOrBlank()) "SMS fra $who: ${body.take(400)}" else "SMS fra $who",
             if (ttsSmsText(ctx)) "SMS-avsender og tekst" else "SMS-avsender")
+    }
+
+    /** "MMS fra X, med bilde: tekst" (text only when "Les også opp teksten" is on). */
+    fun announceMms(ctx: Context, raw: String?, text: String?, att: String?) {
+        if (!ttsOn(ctx)) return
+        val who = spokenName(ctx, raw)
+        val head = "MMS fra $who" + (att?.let { ", $it" } ?: "")
+        val withText = ttsSmsText(ctx) && !text.isNullOrBlank()
+        speak(ctx, if (withText) "$head: ${text!!.take(400)}" else head,
+            if (withText) "MMS-avsender og tekst" else "MMS-avsender")
     }
 }

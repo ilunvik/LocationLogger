@@ -247,7 +247,7 @@ copied or sent anywhere (not to the dashboard either). The only thing that leave
 number sent to the directory lookup.
 
 - **Samtaler tab** – incoming / outgoing / missed / rejected calls (`CallLog`), SMS (`Telephony.Sms`) and
-  MMS (`Telephony.Mms`, text part and sender) newest first (up to 400 calls, 400 SMS, 100 MMS), with the
+  MMS (`Telephony.Mms`, text, attachments and sender) newest first (up to 400 calls, 400 SMS, 150 MMS), with the
   contact name, the looked-up name ("Name (1881.no)") or the number, time, call duration or the start of
   the text, and direction icons (↙ in, ↗ out, ✕ missed). Filter chips **Alle / Samtaler / SMS/MMS**.
   Tap an entry for details (full SMS text).
@@ -273,12 +273,28 @@ number sent to the directory lookup.
   microphone (`VOICE_COMMUNICATION`, else `MIC`) in a `microphone` foreground service while a call is
   active, into the app-specific folder `Android/data/no.grokbot.stedslogger/files/Samtaleopptak/`.
   Android 14+ may refuse a microphone service started from the background, or record silence.
-- **Popup** (*Popup ved innkommende samtale/SMS*, off): a high-priority (heads-up) notification with the
+- **Popup** (*Popup ved innkommende samtale/SMS/MMS*, off): a high-priority (heads-up) notification with the
   caller's / sender's name or lookup result; updated when the lookup finishes; a missed call from a
   looked-up number leaves a normal notification. No overlay permission is needed.
-- **Read aloud** (*Les opp innringer/SMS*, off): Android text-to-speech in Norwegian (nb-NO):
-  "Anrop fra …", "SMS fra …" and, with *Les også opp SMS-teksten*, the text. Needs a Norwegian voice in
+- **Read aloud** (*Les opp innringer/SMS/MMS*, off): Android text-to-speech in Norwegian (nb-NO):
+  "Anrop fra …", "SMS fra …" and, with *Les også opp SMS- og MMS-teksten*, the text. Needs a Norwegian voice in
   the phone's text-to-speech settings.
+- **MMS attachments (1.33)** – MMS parts (`content://mms/part`, `mid=<id>`) are read on the phone:
+  text parts (the `text` column, or the part stream when stored as a file), the subject (UTF-8
+  re-decoded when needed) and attachments. Images are shown as thumbnails in the list and full size in
+  the details; tap one for a fullscreen view. Video, audio, vCard and other parts are chips that open
+  with `ACTION_VIEW` in an app of your choice: straight from `content://mms/part/<id>` with a read
+  grant when the MMS store allows it, otherwise through a temporary copy in the app's cache (served by
+  the app's own non-exported provider, deleted after a day). The sender (address type 137) and, for
+  group MMS, the other participants (151 To / 130 Cc / 129 Bcc) are shown. Delivery / read reports are
+  hidden. Chat (RCS) messages that Samsung Messages stores as MMS show the same way.
+- **New MMS: popup and read aloud (1.33)** – MMS never trigger `SMS_RECEIVED`, and `WAP_PUSH_DELIVER`
+  only reaches the default SMS app, so the app watches the MMS store (`ContentObserver` on
+  `content://mms` and `content://mms-sms/`, registered by the logging service and the app). A new inbox
+  MMS is announced once its parts are downloaded (re-checked every 5 s for up to 30 s): popup with the
+  text and the first image, and "MMS fra X, med bilde: tekst" (the text only with *Les også opp
+  SMS- og MMS-teksten*). The last MMS id seen is kept, so nothing is announced twice and old messages are never
+  read on start-up (the first start marks everything as seen; MMS older than 15 min are skipped).
 - **Log tab** – new types `SAMTALE`, `SMS`, `OPPSLAG`, `OPPTAK`, `TTS`. Numbers are masked to the last
   three digits and SMS texts are never logged.
 
@@ -409,6 +425,12 @@ src/                      Gradle project
       Places.kt            place list: merges several addresses into one name
       StreetView.kt        Street View images for stops (API key, download, cache)
       BootReceiver.kt      restart after reboot / update
+      Comms.kt, CommsTab.kt  calls, SMS and MMS (Samtaler tab)
+      MmsWatch.kt          new incoming MMS (popup / read aloud)
+      MmsMedia.kt          MMS thumbnails, image viewer, open attachments (PartProvider)
+      NumberLookup.kt, Contacts.kt, Phone.kt  number lookup, add to contacts, number formatting
+      Announcer.kt, CommReceiver.kt  popup and read-aloud, call / SMS receivers
+      Recordings.kt, Player.kt, CallRecorderService.kt  call recordings
     src/main/res/          layout, icons, strings
 ```
 

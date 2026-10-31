@@ -132,6 +132,13 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- 1.33: read-only copies of MMS attachments for "open with" (not exported; temporary read grants only) -->
+        <provider
+            android:name=".PartProvider"
+            android:authorities="${applicationId}.parts"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <!-- 1.30: identifies this app to Ice Box (SDK "authorize" PendingIntent); does nothing -->
         <receiver
             android:name=".IceBoxStateReceiver"

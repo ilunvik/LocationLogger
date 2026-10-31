@@ -532,18 +532,18 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Popup ved innkommende samtale/SMS (navn eller oppslag)" />
+                    android:text="Popup ved innkommende samtale/SMS/MMS (navn eller oppslag)" />
                 <CheckBox
                     android:id="@+id/checkCommTts"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Les opp innringer/SMS (norsk tale)" />
+                    android:text="Les opp innringer/SMS/MMS (norsk tale)" />
                 <CheckBox
                     android:id="@+id/checkCommTtsText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="32dp"
-                    android:text="Les også opp SMS-teksten (ellers bare avsender)" />
+                    android:text="Les også opp SMS- og MMS-teksten (ellers bare avsender)" />
                 <Button
                     android:id="@+id/btnTtsTest"
                     style="?android:attr/buttonStyleSmall"

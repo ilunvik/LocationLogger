@@ -270,6 +270,8 @@ class LocationService : Service() {
             startPassive()
             startNetWatch()
             try { ShizukuWatch.init(this) } catch (e: Exception) { EventLog.error(this, "Shizuku-lytter feilet", e) }
+            // 1.33: new incoming MMS (popup / read-aloud) – needs READ_SMS, otherwise a no-op
+            try { MmsWatch.register(this) } catch (e: Exception) { EventLog.error(this, "MMS-lytter feilet", e) }
             try { TailscaleWatch.check(this, "tjenesten startet") } catch (e: Exception) { EventLog.error(this, "Tailscale-sjekk feilet", e) }
             scheduleNetReport() // report once on service start (boot, update, restart)
             LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)

@@ -28,21 +28,12 @@ open class CommReceiver : BroadcastReceiver() {
         when (intent.action) {
             TelephonyManager.ACTION_PHONE_STATE_CHANGED -> onPhoneState(ctx, intent)
             Telephony.Sms.Intents.SMS_RECEIVED_ACTION -> onSms(ctx, intent)
-            Telephony.Sms.Intents.WAP_PUSH_RECEIVED_ACTION -> {
-                EventLog.add(ctx, EventLog.SMS, "MMS mottatt")
-                if (Announcer.ttsOn(ctx)) Announcer.speak(ctx, "Ny MMS")
-            }
+            // 1.33: the MMS itself is picked up (and announced once) by MmsWatch when it lands in the MMS store
+            Telephony.Sms.Intents.WAP_PUSH_RECEIVED_ACTION -> MmsWatch.poke(ctx)
         }
     }
 
-    private fun who(ctx: Context, raw: String?): String {
-        val (name, src) = Announcer.label(ctx, raw)
-        return when {
-            name != null && src != null -> "$name (oppslag, ${Phone.masked(raw)})"
-            name != null -> "$name (kontakt)"
-            else -> Phone.masked(raw)
-        }
-    }
+    private fun who(ctx: Context, raw: String?) = Announcer.who(ctx, raw)
 
     @Suppress("DEPRECATION")
     private fun onPhoneState(ctx: Context, intent: Intent) {
