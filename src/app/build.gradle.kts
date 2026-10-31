@@ -9,8 +9,8 @@ android {
         applicationId = "no.grokbot.stedslogger"
         minSdk = 26
         targetSdk = 34
-        versionCode = 30
-        versionName = "1.28.1"
+        versionCode = 31
+        versionName = "1.29"
     }
     buildTypes {
         release {

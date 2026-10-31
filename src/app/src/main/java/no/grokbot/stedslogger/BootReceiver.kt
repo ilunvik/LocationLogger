@@ -17,6 +17,11 @@ class BootReceiver : BroadcastReceiver() {
             try { AdbReporter.maybeReport(context, force = true) } catch (e: Exception) { EventLog.error(context, "adb-rapport feilet", e) }
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ pr.finish() }, 9000)
         }
+        // 1.29: Tailscale does not always come up by itself after a reboot – the watch waits out the
+        // boot grace period, then asks Tailscale to connect if it is still off (also done at service start)
+        if (action == Intent.ACTION_BOOT_COMPLETED) {
+            try { TailscaleWatch.check(context, "boot") } catch (e: Exception) { EventLog.error(context, "Tailscale-sjekk feilet", e) }
+        }
         if (!LogStore.prefs(context).getBoolean(LogStore.KEY_RUNNING, false)) return
         try {
             LocationService.start(context)

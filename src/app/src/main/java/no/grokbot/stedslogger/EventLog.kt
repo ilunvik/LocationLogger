@@ -26,6 +26,7 @@ object EventLog {
     const val VISIT = "BESØK"      // visit outcome (same place / candidate / new visit)
     const val ADB = "ADB"          // dashboard reports and wireless-debugging changes
     const val SHIZUKU = "SHIZUKU"  // Shizuku running/stopped (since 1.27)
+    const val TAILSCALE = "TAILSCALE" // Tailscale VPN up/off, start attempts (since 1.29)
     const val NET = "NETT"         // network changes
     const val SERVICE = "TJENESTE" // service start/stop, boot, alarm restarts
     const val ERROR = "FEIL"       // errors and exceptions

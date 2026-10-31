@@ -305,6 +305,13 @@ class MainActivity : Activity() {
             AdbReporter.setKeepWifiOn(this, on)
             if (on) Thread { AdbReporter.ensureWifiDebugging(this); runOnUiThread { refresh() } }.start() else refresh()
         }
+        val keepTs = findViewById<android.widget.CheckBox>(R.id.checkKeepTailscale)
+        keepTs.isChecked = TailscaleWatch.keepOn(this)
+        keepTs.setOnCheckedChangeListener { _, on ->
+            TailscaleWatch.setKeepOn(this, on)
+            if (on) TailscaleWatch.check(this, "innstilling slått på")
+            refresh()
+        }
         val ipEdit = findViewById<EditText>(R.id.editDashboardIp)
         ipEdit.setText(AdbReporter.fallbackIp(this))
         findViewById<Button>(R.id.btnSaveDashboardIp).setOnClickListener {
@@ -638,7 +645,7 @@ class MainActivity : Activity() {
             (p.getString(AdbReporter.KEY_KEEP_STATUS, null)?.let { "\nLast: $it" } ?: "")
         findViewById<TextView>(R.id.dashboardStatus).text =
             (if (AdbReporter.url(this).isEmpty()) "Off" else (AdbReporter.status(this) ?: "Not reported yet")) +
-                "\n" + ShizukuWatch.statusLine(this)
+                "\n" + ShizukuWatch.statusLine(this) + "\n" + TailscaleWatch.statusLine(this)
         lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")
         btnBackground.isEnabled = !hasBackgroundLocation()
         btnBattery.isEnabled = !isIgnoringBattery()

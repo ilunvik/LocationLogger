@@ -23,7 +23,7 @@ import java.util.concurrent.Executors
  * it only reads Settings.Global `adb_wifi_enabled` and looks up the phone's own
  * `_adb-tls-connect._tcp` service via NSD (mDNS); it never turns anything on or off.
  *
- * Posts JSON {ip, tailscaleIp, lanIp, port, adbWifi, ts, device, deviceId, model, tcp5555, shizuku} only when the value changed, or as
+ * Posts JSON {ip, tailscaleIp, lanIp, port, adbWifi, ts, device, deviceId, model, tcp5555, shizuku, tailscale} only when the value changed, or as
  * a heartbeat about once an hour.
  */
 object AdbReporter {
@@ -219,7 +219,8 @@ object AdbReporter {
         }
         val ip = ts ?: lan
         val shizuku = ShizukuWatch.lastState(ctx)
-        val sig = "$wifi|$ts|$lan|$port|$tcp|$shizuku"
+        val tailscale = TailscaleWatch.lastState(ctx)
+        val sig = "$wifi|$ts|$lan|$port|$tcp|$shizuku|$tailscale"
         val p = LogStore.prefs(ctx)
         val due = force || sig != p.getString(KEY_SIG, null) ||
             System.currentTimeMillis() - p.getLong(KEY_AT, 0L) > HEARTBEAT_MS
@@ -235,8 +236,9 @@ object AdbReporter {
             put("model", android.os.Build.MODEL ?: JSONObject.NULL)
             put("tcp5555", tcp)
             put("shizuku", shizuku)
+            put("tailscale", tailscale)
         }.toString()
-        val shown = (if (wifi == "off") "wireless debugging off" else "$ip:${port ?: "?"}") + (if (tcp) " · tcp 5555" else "") + " · Shizuku $shizuku"
+        val shown = (if (wifi == "off") "wireless debugging off" else "$ip:${port ?: "?"}") + (if (tcp) " · tcp 5555" else "") + " · Shizuku $shizuku · Tailscale $tailscale"
         try {
             when (val r = try { post(ctx, u, body) } catch (e: Exception) { PostResult.Failed(e) }) {
                 is PostResult.Ok -> {

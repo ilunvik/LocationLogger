@@ -27,6 +27,8 @@
     <!-- 1.27: see whether the Shizuku app is installed (Android 11+ package visibility) -->
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
+        <!-- 1.29: Tailscale watch (installed? launch intent for the notification, CONNECT_VPN broadcast) -->
+        <package android:name="com.tailscale.ipn" />
     </queries>
 
     <application

@@ -58,7 +58,7 @@ The app has three tabs:
 - **Log** (since 1.25, labels in Norwegian) – every debug entry, newest first, with time (phone's time
   zone), type and details: check started / result (`SJEKK`), every raw location fix with coordinates,
   provider, accuracy and age (`POSISJON`), visit outcome (`BESØK`), the stored visits' arrival / last seen
-  (`BESØKSLISTE`), dashboard reports and wireless-debugging changes (`ADB`), Shizuku running/stopped (`SHIZUKU`, 1.27+), network changes (`NETT`),
+  (`BESØKSLISTE`), dashboard reports and wireless-debugging changes (`ADB`), Shizuku running/stopped (`SHIZUKU`, 1.27+), Tailscale up/off and start attempts (`TAILSCALE`, 1.29+), network changes (`NETT`),
   service start/stop, boot, update and alarm restarts (`TJENESTE`) and errors (`FEIL`). A type filter,
   **Oppdater** (refresh), **Kopier** (copy as text), **Del** (share) and **Tøm** (clear, after confirming;
   visits are kept). Long-press an entry to copy it.
@@ -152,6 +152,17 @@ Shizuku has stopped, a report is sent right away and then at most every 2 minute
 check) while it stays stopped, so the dashboard host can start it again over adb; when it is back, one
 more report is sent. State changes are logged in the Log tab under `SHIZUKU` ("Shizuku stoppet – varsler
 Asus" / "Shizuku kjører igjen"), and Settings shows the current Shizuku state under the dashboard status.
+
+**Tailscale watch (1.29+).** At every periodic check, at service start and on network changes (no extra
+polling or wake locks) the app checks whether the [Tailscale](https://tailscale.com/) VPN is up: a VPN
+interface (`TRANSPORT_VPN` or `tun*`) with an address in 100.64.0.0/10. Each report carries
+`"tailscale": "running" | "stopped" | "not_installed" | "unknown"` (unknown during the first 90 s after boot
+and 30 s after the app starts). When it is off and "Keep Tailscale on" is checked (default), the app sends
+Tailscale's documented intent – an explicit broadcast `com.tailscale.ipn.CONNECT_VPN` to
+`com.tailscale.ipn/.IPNReceiver` – at most every 3 minutes, and every 15 minutes after two failed attempts.
+Tailscale starts the VPN without UI when its VPN permission was granted before; otherwise it shows its own
+notification. After two failed attempts LocationLogger shows a notification "Tailscale er av" (tap opens
+Tailscale). When Tailscale is back, a report is sent at once. Log category `TAILSCALE`; Settings shows the state.
 
 ## Street View
 

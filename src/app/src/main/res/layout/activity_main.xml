@@ -442,6 +442,12 @@
                     android:layout_height="wrap_content"
                     android:textIsSelectable="true"
                     android:textSize="13sp" />
+                <CheckBox
+                    android:id="@+id/checkKeepTailscale"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Keep Tailscale on (ask it to connect when it is off; notify if it stays off)" />
 
             </LinearLayout>
         </ScrollView>

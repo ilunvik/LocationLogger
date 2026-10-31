@@ -146,6 +146,7 @@ class LocationService : Service() {
         checkLocation()
         scheduleNext()
         try { ShizukuWatch.check(this) } catch (e: Exception) { EventLog.error(this, "Shizuku-sjekk feilet", e) }
+        try { TailscaleWatch.check(this) } catch (e: Exception) { EventLog.error(this, "Tailscale-sjekk feilet", e) }
         try { AdbReporter.maybeReport(this) } catch (e: Exception) { EventLog.error(this, "adb-rapport feilet", e) }
     }
 
@@ -155,6 +156,8 @@ class LocationService : Service() {
     private var netReason = "nettverksendring"
     private val netReport = Runnable {
         EventLog.add(this, EventLog.NET, "$netReason – rapporterer adb-adressen")
+        // 1.29: a network change is also when Tailscale goes up/down (cheap: reads interfaces only)
+        try { TailscaleWatch.check(this, "nettverksendring") } catch (e: Exception) { EventLog.error(this, "Tailscale-sjekk feilet", e) }
         try { AdbReporter.maybeReport(this, force = true) } catch (e: Exception) { EventLog.error(this, "adb-rapport feilet", e) }
     }
     private fun scheduleNetReport(delayMs: Long = NET_DEBOUNCE_MS, reason: String = "Nettverksendring") {
@@ -267,6 +270,7 @@ class LocationService : Service() {
             startPassive()
             startNetWatch()
             try { ShizukuWatch.init(this) } catch (e: Exception) { EventLog.error(this, "Shizuku-lytter feilet", e) }
+            try { TailscaleWatch.check(this, "tjenesten startet") } catch (e: Exception) { EventLog.error(this, "Tailscale-sjekk feilet", e) }
             scheduleNetReport() // report once on service start (boot, update, restart)
             LogStore.prefs(this).registerOnSharedPreferenceChangeListener(prefsListener)
             // Continue the earlier schedule if the service was restarted (boot, update, killed)
