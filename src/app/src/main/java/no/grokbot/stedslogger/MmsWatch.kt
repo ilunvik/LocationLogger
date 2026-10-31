@@ -126,7 +126,7 @@ object MmsWatch {
         EventLog.add(app, EventLog.SMS, "MMS fra ${Announcer.who(app, from)} (${text?.length ?: 0} tegn" +
             (att?.let { ", $it" } ?: "") + (if (!downloaded) ", ikke lastet ned" else "") + ")$group")
         if (NumberLookup.enabled(app) && NumberLookup.needsLookup(app, from)) {
-            val r = try { NumberLookup.lookup(app, from) } catch (_: Exception) { null }
+            val r = try { NumberLookup.lookup(app, from, maxMs = 30_000L) } catch (_: Exception) { null }
             Contacts.maybeAutoAdd(app, from, r)
         }
         Announcer.popupMms(app, from, text, att, item.subject, item.images.firstOrNull())

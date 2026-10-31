@@ -251,13 +251,23 @@ number sent to the directory lookup.
   contact name, the looked-up name ("Name (1881.no)") or the number, time, call duration or the start of
   the text, and direction icons (↙ in, ↗ out, ✕ missed). Filter chips **Alle / Samtaler / SMS/MMS**.
   Tap an entry for details (full SMS text).
-- **Number lookup** – Norwegian 8-digit numbers that are not in the contacts are looked up on the
-  1881.no search page (the result box whose `tel:` link is exactly the number; gulesider.no is tried as a
-  best-effort fallback but is usually behind a Cloudflare challenge). Results are cached on the phone
-  (`files/lookup_cache.json`; found 90 days, not found 14 days). At least 3 s between requests, at most 40
-  per hour; a block (HTTP 403/429/503 or a challenge page) pauses that site for 6 h. New entries in the tab
-  are looked up automatically (max 15 per refresh), or with **🔍 Slå opp** on an entry. Setting:
-  *Slå opp ukjente nummer på 1881.no* (on).
+- **Number lookup** – Norwegian 8-digit numbers that are not in the contacts are looked up, in this
+  order (each source can be switched off in Settings): **1881.no** (`/?query=<number>`; the result box
+  whose `tel:` link is exactly the number, or the detail page a single hit redirects to), **gulesider.no
+  personer** (`/<number>/personer`) and **gulesider.no bedrifter** (`/<number>/bedrifter`). Since 1.34
+  gulesider.no is read in an **off-screen WebView** (the phone's real browser engine with Chrome's user
+  agent, JavaScript, DOM storage and persistent cookies), so its Cloudflare check runs as in a normal
+  browser; the page is polled until the check is over (max 20 s) and `assets/lookup_extract.js` reads the
+  entry whose number matches (JSON-LD, 1881 result boxes / detail page, result cards). 1881.no is fetched
+  with a plain request first and falls back to the WebView if that is blocked. Results are cached on the
+  phone (`files/lookup_cache.json`; found 90 days, not found 14 days). At least 3 s between lookups, at
+  most 40 per hour; an HTTP block pauses that site for 6 h, a check the WebView could not finish for 1 h.
+  New entries in the tab are looked up automatically (max 15 per refresh), or with **🔍 Slå opp** on an
+  entry, which also offers the **web view**.
+- **Web view (1.34)** – **🌐 Nettvisning** / *Åpne … i nettvisning* shows the 1881 or gulesider page for
+  the number inside the app, so a Cloudflare check can be completed by hand (the cookies are shared with
+  the background lookup, which lifts the pause). **Bruk dette navnet** reads the matching name from the
+  page (or lets you type one) and saves it as the lookup result, optionally adding it to the contacts.
 - **Add to contacts** – **+ Legg til i kontakter** on an entry with a looked-up name creates a new phone
   contact (name, number, note "Oppslag via LocationLogger (source, date)"). With *Legg automatisk til
   oppslag i kontakter* (off by default) this happens after every successful lookup. An existing contact
@@ -428,6 +438,8 @@ src/                      Gradle project
       Comms.kt, CommsTab.kt  calls, SMS and MMS (Samtaler tab)
       MmsWatch.kt          new incoming MMS (popup / read aloud)
       MmsMedia.kt          MMS thumbnails, image viewer, open attachments (PartProvider)
+      WebLookup.kt, WebLookupActivity.kt  number lookup in a WebView (background and visible)
+    src/main/assets/lookup_extract.js  reads the matching entry from a 1881 / gulesider page
       NumberLookup.kt, Contacts.kt, Phone.kt  number lookup, add to contacts, number formatting
       Announcer.kt, CommReceiver.kt  popup and read-aloud, call / SMS receivers
       Recordings.kt, Player.kt, CallRecorderService.kt  call recordings

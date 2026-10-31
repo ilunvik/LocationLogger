@@ -32,4 +32,10 @@ class LookupTest {
         assertEquals("Eksempel AS", NumberLookup.parseGulesider(html, "21000000"))
         assertNull(NumberLookup.parseGulesider(html, "22000000"))
     }
+
+    @Test fun parse1881DetailPage() {
+        val html = "<html><h1 class=\"details-name\">Testfirma AS</h1><a href=\"tel:004721000000\">21 00 00 00</a></html>"
+        assertEquals("Testfirma AS", NumberLookup.parse1881(html, "21000000"))
+        assertEquals(null, NumberLookup.parse1881(html, "22222222"))
+    }
 }

@@ -132,6 +132,12 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- 1.34: visible number lookup page (1881.no / gulesider.no) -->
+        <activity
+            android:name=".WebLookupActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
+
         <!-- 1.33: read-only copies of MMS attachments for "open with" (not exported; temporary read grants only) -->
         <provider
             android:name=".PartProvider"

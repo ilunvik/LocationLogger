@@ -725,6 +725,9 @@ class MainActivity : Activity() {
         bind(R.id.checkCommTts, Announcer.KEY_TTS, false, needCalls)
         bind(R.id.checkCommTtsText, Announcer.KEY_TTS_SMS_TEXT, false)
         bind(R.id.checkLookup, NumberLookup.KEY_ENABLED, true)
+        bind(R.id.checkSrc1881, NumberLookup.KEY_SRC_1881, true)
+        bind(R.id.checkSrcGsPersons, NumberLookup.KEY_SRC_GS_PERSONS, true)
+        bind(R.id.checkSrcGsCompanies, NumberLookup.KEY_SRC_GS_COMPANIES, true)
         bind(R.id.checkLookupContact, NumberLookup.KEY_AUTO_CONTACT, false) { on ->
             if (on && !granted(Manifest.permission.WRITE_CONTACTS)) askCommPermissions()
         }

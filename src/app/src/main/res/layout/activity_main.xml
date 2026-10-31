@@ -556,12 +556,30 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Slå opp ukjente nummer på 1881.no" />
+                    android:text="Slå opp ukjente nummer (1881.no, gulesider.no)" />
+                <CheckBox
+                    android:id="@+id/checkSrc1881"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="32dp"
+                    android:text="1881.no" />
+                <CheckBox
+                    android:id="@+id/checkSrcGsPersons"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="32dp"
+                    android:text="gulesider.no – personer (nettleser i appen)" />
+                <CheckBox
+                    android:id="@+id/checkSrcGsCompanies"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="32dp"
+                    android:text="gulesider.no – bedrifter (nettleser i appen)" />
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="32dp"
-                    android:text="Bare nummeret sendes (norske 8-sifrede nummer som ikke er i kontakter). Svar lagres på telefonen. Maks 40 oppslag i timen."
+                    android:text="Rekkefølge: 1881, gulesider personer, gulesider bedrifter. Bare nummeret sendes (norske 8-sifrede nummer som ikke er i kontakter). Gulesider leses i en usynlig nettleser i appen, så sikkerhetssjekken deres går som i Chrome; stopper den, bruk «🌐 Nettvisning» på en rad i Samtaler. Svar lagres på telefonen. Maks 40 oppslag i timen."
                     android:textColor="#757575"
                     android:textSize="12sp" />
                 <CheckBox

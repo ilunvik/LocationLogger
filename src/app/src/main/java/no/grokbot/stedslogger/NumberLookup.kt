@@ -13,7 +13,10 @@ import java.util.concurrent.Executors
  * Source 1: 1881.no search page (`https://www.1881.no/?query=<8 digits>`): every result box
  * (`class="box listing …"`) has its name in `listing-name` and its numbers as `tel:0047…` links; a
  * box is a hit only if one of its tel links is the number searched for (the page also lists
- * related businesses). Source 2 (fallback): gulesider.no, best effort (often blocked by Cloudflare).
+ * related businesses; a single hit redirects to a detail page with `h1.details-name`).
+ * Since 1.34 gulesider.no (`/<k>/personer`, then `/<k>/bedrifter`) is read in an off-screen WebView
+ * ([WebLookup]) so its Cloudflare check runs like in a normal browser, and 1881.no falls back to the
+ * WebView when the plain request is blocked. The sources can be switched off one by one in Settings.
  *
  * Only the number is sent, nothing else. Results are cached in files/lookup_cache.json (found: 90 days,
  * not found: 14 days). Rate limits: at least [MIN_GAP_MS] between requests and at most [MAX_PER_HOUR]
@@ -28,11 +31,27 @@ object NumberLookup {
     private const val MIN_GAP_MS = 3_000L
     private const val MAX_PER_HOUR = 40
     private const val BLOCK_PAUSE_MS = 6L * 3_600_000L
-    private const val UA = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
+    private const val UA = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
 
     const val KEY_ENABLED = "lookup_enabled"
     const val KEY_AUTO_CONTACT = "lookup_auto_contact"
     private const val KEY_STATUS = "lookup_status"
+    const val KEY_SRC_1881 = "lookup_src_1881"
+    const val KEY_SRC_GS_PERSONS = "lookup_src_gs_persons"
+    const val KEY_SRC_GS_COMPANIES = "lookup_src_gs_companies"
+    /** 1.34: lookups changed method; not-found results and pauses from 1.32/1.33 are forgotten once. */
+    private const val KEY_RESET_134 = "lookup_reset_134"
+    /** A Cloudflare check the WebView could not finish pauses that site this long (HTTP blocks: [BLOCK_PAUSE_MS]). */
+    private const val WEB_BLOCK_PAUSE_MS = 1L * 3_600_000L
+    const val SRC_1881 = "1881.no"
+    const val SRC_GS = "gulesider.no"
+
+    fun url1881(k: String) = "https://www.1881.no/?query=$k"
+    fun urlGsPersons(k: String) = "https://www.gulesider.no/$k/personer"
+    fun urlGsCompanies(k: String) = "https://www.gulesider.no/$k/bedrifter"
+    fun src1881(ctx: Context) = LogStore.prefs(ctx).getBoolean(KEY_SRC_1881, true)
+    fun srcGsPersons(ctx: Context) = LogStore.prefs(ctx).getBoolean(KEY_SRC_GS_PERSONS, true)
+    fun srcGsCompanies(ctx: Context) = LogStore.prefs(ctx).getBoolean(KEY_SRC_GS_COMPANIES, true)
 
     private val io = Executors.newSingleThreadExecutor()
     private var cache: MutableMap<String, Result>? = null
@@ -61,7 +80,31 @@ object NumberLookup {
             }
         } catch (_: Exception) {}
         cache = m
+        val p = LogStore.prefs(ctx)
+        if (!p.getBoolean(KEY_RESET_134, false)) {
+            val before = m.size
+            m.values.removeAll { it.name == null }
+            blockedUntil.clear()
+            p.edit().putBoolean(KEY_RESET_134, true).remove(KEY_STATUS).apply()
+            if (m.size != before) save(ctx)
+        }
         return m
+    }
+
+    /** The site works again (e.g. the user passed its check in the web view): lift the pause. */
+    fun unblock(ctx: Context, source: String) {
+        if (blockedUntil.remove(source) != null) setStatus(ctx, "$source virker igjen")
+    }
+
+    /** Saves a name the user picked (or typed) in the web view. */
+    fun store(ctx: Context, raw: String?, name: String, source: String): Result? {
+        val k = Phone.key(raw)
+        if (!Phone.isNorwegian(k) || name.isBlank()) return null
+        val r = Result(name.trim(), source, System.currentTimeMillis())
+        synchronized(this) { load(ctx)[k] = r; save(ctx) }
+        EventLog.add(ctx, EventLog.LOOKUP, "Lagret fra nettvisning ($source) for ${Phone.masked(k)}: ${r.name}")
+        setStatus(ctx, "OK – siste treff via $source (nettvisning)")
+        return r
     }
 
     @Synchronized
@@ -106,21 +149,25 @@ object NumberLookup {
     }
 
     /** Looks the number up in the background; [done] runs on the lookup thread. */
-    fun lookupAsync(ctx: Context, raw: String?, manual: Boolean = false, done: (Result?) -> Unit) {
+    fun lookupAsync(ctx: Context, raw: String?, manual: Boolean = false, maxMs: Long = DEFAULT_MAX_MS, done: (Result?) -> Unit) {
         val app = ctx.applicationContext
-        io.execute { done(try { lookup(app, raw, manual) } catch (e: Exception) { EventLog.error(app, "Oppslag feilet", e); null }) }
+        io.execute { done(try { lookup(app, raw, manual, maxMs) } catch (e: Exception) { EventLog.error(app, "Oppslag feilet", e); null }) }
     }
+
+    /** Whole lookup (all sources) at most this long by default; a ringing call uses less. */
+    const val DEFAULT_MAX_MS = 50_000L
 
     /**
      * Blocking lookup (do not call on the main thread). Returns the cached or new result, or null when the
      * number cannot be looked up or every source is paused / rate limited ([manual] skips the hourly cap).
      */
-    fun lookup(ctx: Context, raw: String?, manual: Boolean = false): Result? {
+    fun lookup(ctx: Context, raw: String?, manual: Boolean = false, maxMs: Long = DEFAULT_MAX_MS): Result? {
         val k = Phone.key(raw)
         if (!Phone.isNorwegian(k)) return null
         fresh(ctx, k)?.let { return it }
         if (!manual && !enabled(ctx)) return null
         val now = System.currentTimeMillis()
+        val deadline = now + maxMs
         synchronized(recent) {
             while (recent.isNotEmpty() && now - recent.first() > 3_600_000L) recent.removeFirst()
             if (!manual && recent.size >= MAX_PER_HOUR) {
@@ -132,37 +179,57 @@ object NumberLookup {
             lastRequest = System.currentTimeMillis()
             recent.addLast(lastRequest)
         }
-        var anyAnswer = false
-        for ((source, fn) in listOf<Pair<String, (String) -> String?>>("1881.no" to ::from1881, "gulesider.no" to ::fromGulesider)) {
-            if ((blockedUntil[source] ?: 0L) > System.currentTimeMillis()) continue
+        // name, source, how; null name = no hit there; exception = no answer
+        data class Step(val source: String, val label: String, val run: (Long) -> String?)
+        val steps = ArrayList<Step>()
+        if (src1881(ctx)) steps += Step(SRC_1881, "1881.no") { budget -> from1881(ctx, k, budget) }
+        if (srcGsPersons(ctx)) steps += Step(SRC_GS, "gulesider.no personer") { budget -> web(ctx, urlGsPersons(k), k, budget) }
+        if (srcGsCompanies(ctx)) steps += Step(SRC_GS, "gulesider.no bedrifter") { budget -> web(ctx, urlGsCompanies(k), k, budget) }
+        if (steps.isEmpty()) { setStatus(ctx, "Ingen kilder valgt"); return null }
+        val answered = ArrayList<String>()
+        for (st in steps) {
+            if ((blockedUntil[st.source] ?: 0L) > System.currentTimeMillis()) continue
+            val budget = minOf(WebLookup.MAX_WAIT_MS, deadline - System.currentTimeMillis())
+            if (budget < 4_000L) { EventLog.add(ctx, EventLog.LOOKUP, "${st.label}: hoppet over (ikke tid nok)"); break }
             try {
-                val name = fn(k)
-                anyAnswer = true
+                val name = st.run(budget)
+                answered += st.label
                 if (name != null) {
-                    val r = Result(name, source, System.currentTimeMillis())
+                    val r = Result(name, st.source, System.currentTimeMillis())
                     synchronized(this) { load(ctx)[k] = r; save(ctx) }
-                    EventLog.add(ctx, EventLog.LOOKUP, "Funnet via $source for ${Phone.masked(k)}: $name")
-                    setStatus(ctx, "OK – siste treff via $source")
+                    EventLog.add(ctx, EventLog.LOOKUP, "Funnet via ${st.label} for ${Phone.masked(k)}: $name")
+                    setStatus(ctx, "OK – siste treff via ${st.label}")
                     return r
                 }
+                EventLog.add(ctx, EventLog.LOOKUP, "${st.label}: ingen treff for ${Phone.masked(k)}")
             } catch (b: Blocked) {
-                blockedUntil[source] = System.currentTimeMillis() + BLOCK_PAUSE_MS
-                EventLog.add(ctx, EventLog.LOOKUP, "$source blokkerte oppslaget (${b.message}) – pause ${BLOCK_PAUSE_MS / 3_600_000} t")
-                setStatus(ctx, "$source blokkerer (${b.message}); pause ${BLOCK_PAUSE_MS / 3_600_000} t")
+                val pause = if (b.web) WEB_BLOCK_PAUSE_MS else BLOCK_PAUSE_MS
+                blockedUntil[st.source] = System.currentTimeMillis() + pause
+                EventLog.add(ctx, EventLog.LOOKUP, "${st.label} blokkerte oppslaget (${b.message}) – pause ${pause / 3_600_000} t")
+                setStatus(ctx, "${st.source} blokkerer (${b.message}); pause ${pause / 3_600_000} t – åpne nettvisning for å fullføre sjekken")
             } catch (e: Exception) {
-                EventLog.add(ctx, EventLog.LOOKUP, "$source: feil for ${Phone.masked(k)}: ${e.javaClass.simpleName} ${e.message ?: ""}")
+                EventLog.add(ctx, EventLog.LOOKUP, "${st.label}: feil for ${Phone.masked(k)}: ${e.javaClass.simpleName} ${e.message ?: ""}")
             }
         }
-        if (!anyAnswer) return null
-        val r = Result(null, "1881.no", System.currentTimeMillis())
+        if (answered.isEmpty()) return null
+        val r = Result(null, answered.joinToString(" + "), System.currentTimeMillis())
         synchronized(this) { load(ctx)[k] = r; save(ctx) }
-        EventLog.add(ctx, EventLog.LOOKUP, "Ingen treff for ${Phone.masked(k)}")
+        EventLog.add(ctx, EventLog.LOOKUP, "Ingen treff for ${Phone.masked(k)} (${r.source})")
         return r
     }
 
+    /** One page in the off-screen WebView: name, null (no hit), or throws (blocked / failed). */
+    private fun web(ctx: Context, url: String, k: String, budget: Long): String? =
+        when (val o = WebLookup.run(ctx, url, k, budget)) {
+            is WebLookup.Outcome.Found -> o.name
+            WebLookup.Outcome.NotFound -> null
+            is WebLookup.Outcome.Blocked -> throw Blocked(o.why, web = true)
+            is WebLookup.Outcome.Failed -> throw java.io.IOException(o.why)
+        }
+
     private fun setStatus(ctx: Context, s: String) = LogStore.prefs(ctx).edit().putString(KEY_STATUS, s).apply()
 
-    private class Blocked(msg: String) : Exception(msg)
+    private class Blocked(msg: String, val web: Boolean = false) : Exception(msg)
 
     private fun get(url: String): String {
         val c = URL(url).openConnection() as HttpURLConnection
@@ -185,6 +252,11 @@ object NumberLookup {
 
     /** 1881.no: name of the result box whose tel: link is exactly this number. */
     internal fun parse1881(html: String, k: String): String? {
+        val tels = listOf("tel:0047$k", "tel:$k", "tel:+47$k")
+        // A single hit redirects to the detail page
+        Regex("class=\"details-name\"[^>]*>([^<]+)</h1>").find(html)?.groupValues?.get(1)?.let { n ->
+            if (tels.any { html.contains(it) }) return unescape(n.trim())
+        }
         val boxes = html.split("class=\"box listing").drop(1)
         if (boxes.isEmpty()) return null
         val nameRe = Regex("class=\"listing-name\">\\s*<a[^>]*>([^<]+)</a>")
@@ -198,7 +270,13 @@ object NumberLookup {
         return null
     }
 
-    private fun from1881(k: String): String? = parse1881(get("https://www.1881.no/?query=$k"), k)
+    /** Plain request first (fast, no browser); if 1881 blocks it, the same page in the WebView. */
+    private fun from1881(ctx: Context, k: String, budget: Long): String? = try {
+        parse1881(get(url1881(k)), k)
+    } catch (b: Blocked) {
+        EventLog.add(ctx, EventLog.LOOKUP, "1881.no: vanlig forespørsel blokkert (${b.message}) – prøver nettleser")
+        web(ctx, url1881(k), k, budget)
+    }
 
     /** gulesider.no (best effort): the JSON-LD object whose "telephone" is this number gives the name. */
     internal fun parseGulesider(html: String, k: String): String? {
@@ -213,7 +291,6 @@ object NumberLookup {
         return null
     }
 
-    private fun fromGulesider(k: String): String? = parseGulesider(get("https://www.gulesider.no/$k/hva"), k)
 
     private fun unescape(s: String): String {
         var t = s.replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'").replace("&apos;", "'")

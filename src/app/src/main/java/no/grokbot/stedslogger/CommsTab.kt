@@ -226,7 +226,8 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             if (r.contact == null && Phone.isNorwegian(k)) {
                 val lk = r.lookup
                 if (lk?.name != null) buttons.addView(small("+ Legg til i kontakter") { addContact(r) })
-                else if (lk == null) buttons.addView(small("🔍 Slå opp") { lookupNow(r) })
+                else if (lk == null) buttons.addView(small("🔍 Slå opp") { lookupMenu(r) })
+                else buttons.addView(small("🌐 Nettvisning") { WebLookupActivity.open(act, it.number) })
             }
             if (buttons.childCount > 0) col.addView(buttons)
             return row
@@ -267,16 +268,36 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         return HorizontalScrollView(act).apply { isHorizontalScrollBarEnabled = false; addView(strip) }
     }
 
+    /** Automatic lookup, or the page in the in-app web view (1881 / gulesider personer / bedrifter). */
+    private fun lookupMenu(r: Row) {
+        AlertDialog.Builder(act)
+            .setTitle("Slå opp ${Phone.pretty(r.item.number)}")
+            .setItems(arrayOf("Slå opp automatisk", "Åpne 1881.no i nettvisning", "Åpne gulesider.no (personer)", "Åpne gulesider.no (bedrifter)")) { _, i ->
+                when (i) {
+                    0 -> lookupNow(r)
+                    1 -> WebLookupActivity.open(act, r.item.number, WebLookupActivity.SITE_1881)
+                    2 -> WebLookupActivity.open(act, r.item.number, WebLookupActivity.SITE_GS_PERSONS)
+                    else -> WebLookupActivity.open(act, r.item.number, WebLookupActivity.SITE_GS_COMPANIES)
+                }
+            }
+            .setNegativeButton("Avbryt", null)
+            .show()
+    }
+
     private fun lookupNow(r: Row) {
         Toast.makeText(act, "Slår opp ${Phone.pretty(r.item.number)} …", Toast.LENGTH_SHORT).show()
         NumberLookup.lookupAsync(act, r.item.number, manual = true) { res ->
             res?.let { Contacts.maybeAutoAdd(act, r.item.number, it) }
             act.runOnUiThread {
-                Toast.makeText(act, when {
-                    res == null -> "Oppslag ikke mulig nå (se Logg › OPPSLAG)"
-                    res.name == null -> "Ingen treff på ${res.source}"
-                    else -> "Funnet: ${res.name} (${res.source})"
-                }, Toast.LENGTH_LONG).show()
+                if (res?.name != null) Toast.makeText(act, "Funnet: ${res.name} (${res.source})", Toast.LENGTH_LONG).show()
+                else AlertDialog.Builder(act)
+                    .setTitle(if (res == null) "Oppslag ikke mulig nå" else "Ingen treff")
+                    .setMessage((if (res == null) "Kildene svarte ikke eller ba om en sikkerhetssjekk (se Logg › OPPSLAG)."
+                        else "Ingen treff på ${res.source}.") + "\n\nÅpne søkesiden i nettvisning? Der kan du fullføre en sjekk og velge navnet selv.")
+                    .setPositiveButton("Åpne nettvisning") { _, _ -> WebLookupActivity.open(act, r.item.number,
+                        if (res == null) WebLookupActivity.SITE_GS_PERSONS else WebLookupActivity.SITE_1881) }
+                    .setNegativeButton("Lukk", null)
+                    .show()
                 load()
             }
         }
@@ -343,6 +364,8 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         }
         val buttons = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
         r.recs.forEachIndexed { i, rec -> buttons.addView(small(if (r.recs.size > 1) "▶ Opptak ${i + 1}" else "▶ Opptak") { Player.show(act, rec, title(r)) }) }
+        if (r.contact == null && Phone.isNorwegian(Phone.key(it.number)))
+            buttons.addView(small("🌐 Nettvisning") { WebLookupActivity.open(act, it.number) })
         if (buttons.childCount > 0) box.addView(buttons)
         AlertDialog.Builder(act).setTitle(title(r)).setView(ScrollView(act).apply { addView(box) }).setPositiveButton("OK", null).show()
     }

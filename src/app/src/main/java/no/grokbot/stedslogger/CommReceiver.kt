@@ -70,7 +70,7 @@ open class CommReceiver : BroadcastReceiver() {
                 Announcer.popupCall(ctx, number, lookingUp = needs)
                 if (!needs) { Announcer.announceCall(ctx, number); return }
                 val pending = goAsync()
-                NumberLookup.lookupAsync(ctx, number) { r ->
+                NumberLookup.lookupAsync(ctx, number, maxMs = 15_000L) { r ->
                     try {
                         if (LogStore.prefs(ctx).getString(KEY_STATE, null) == ST_RINGING) {
                             Announcer.popupCall(ctx, number, lookingUp = false)
@@ -119,7 +119,7 @@ open class CommReceiver : BroadcastReceiver() {
         Thread {
             try {
                 for (n in toLookUp) {
-                    val r = try { NumberLookup.lookup(ctx, n) } catch (_: Exception) { null }
+                    val r = try { NumberLookup.lookup(ctx, n, maxMs = 25_000L) } catch (_: Exception) { null }
                     Contacts.maybeAutoAdd(ctx, n, r)
                 }
                 show()
