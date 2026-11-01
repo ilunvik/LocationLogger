@@ -219,6 +219,15 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         return (w * 0.4f / 46f).toInt().coerceIn(2, 5)
     }
 
+    /** Row excerpt of a comment: first line, at most ~60 chars cut at a word boundary, "…" when shortened. */
+    private fun excerpt(c: String, max: Int = 60): String {
+        val first = c.trim().lineSequence().first().trim()
+        val more = first.length < c.trim().length
+        if (first.length <= max) return if (more) "$first …" else first
+        val cut = first.lastIndexOf(' ', max).takeIf { i -> i >= max / 2 } ?: max
+        return first.substring(0, cut).trimEnd() + "…"
+    }
+
     private fun editComment(r: Row) {
         val it = r.item
         val old = Comments.get(act, it)
@@ -286,6 +295,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             val named = r.contact != null || r.lookup?.name != null || it.cachedName != null
             val meta = listOfNotNull(if (named) Phone.pretty(it.number) else null, kindText(it), when_(it.at),
                 dur(it.durationS).ifEmpty { null }).joinToString(" · ") { p -> p.replace(' ', '\u00A0') }
+            val comment = Comments.get(act, it)
             val name = title(r)
             val head = android.text.SpannableStringBuilder(name).apply {
                 setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, name.length, 0)
@@ -296,14 +306,18 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                 append(meta)
                 setSpan(android.text.style.RelativeSizeSpan(12.5f / 15f), s0, length, 0)  // 12.5 sp
                 setSpan(android.text.style.ForegroundColorSpan(0xFF616161.toInt()), s0, length, 0)
+                // 1.45: comment excerpt after the details (last, so the 3-line ellipsis cuts the comment, not the date)
+                if (comment != null) {
+                    append("   ")
+                    val c0 = length
+                    append("💬\u00A0").append(excerpt(comment))
+                    setSpan(android.text.style.RelativeSizeSpan(12.5f / 15f), c0, length, 0)
+                    setSpan(android.text.style.StyleSpan(Typeface.ITALIC), c0, length, 0)
+                    setSpan(android.text.style.ForegroundColorSpan(COMMENT_COLOR), c0, length, 0)
+                }
             }
             col.addView(TextView(act).apply {
                 text = head; textSize = 15f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
-            })
-            val comment = Comments.get(act, it)
-            if (comment != null) col.addView(TextView(act).apply {
-                text = "💬 $comment"; textSize = 13f; setTypeface(typeface, Typeface.ITALIC); setTextColor(COMMENT_COLOR)
-                maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
             })
             it.subject?.let { sub -> col.addView(TextView(act).apply {
                 text = "«$sub»"; textSize = 13f; setTypeface(typeface, Typeface.ITALIC); maxLines = 1
