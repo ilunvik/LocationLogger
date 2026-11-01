@@ -288,6 +288,13 @@ number sent to the directory lookup.
   Since 1.43 the number, direction/kind, time and duration follow the name on the same line in small grey
   text (wrapping to the next line only at the " · " separators when it does not fit), so the message text
   comes right after it.
+- **Comments (1.44)** – every Samtaler row has a comment icon (grey outline; filled purple when the entry
+  has a comment). It opens a dialog with a multi-line text field and **Lagre** / **Avbryt** / **Slett**
+  (saving an empty text also deletes). The comment is shown under the name line (italic, purple, 💬) and in
+  the entry's details, which also has a **💬 Kommenter** button. Comments are stored only on the phone
+  (app-private preferences, keyed by the call-log / SMS / MMS row id, type and time; backup is off) and are
+  never sent anywhere; the Log only records `KOMMENTAR` lagret / endret / slettet with the kind, never the
+  text or the number. Icons per line are now chosen from the list width (as many as fit in 40 %, 2–5).
   Since 1.40 the list has a slim drag handle (20 dp touch strip, 5 dp thumb, grabbed only on or near the
   thumb) instead of Android's fast scroller, whose 48 dp touch zone made taps on the icons scroll the list;
   the icon column keeps 28 dp from the right edge.

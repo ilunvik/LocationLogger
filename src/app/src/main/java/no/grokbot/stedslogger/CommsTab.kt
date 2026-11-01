@@ -38,6 +38,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
     private var loading = false
     private var autoLookupRunning = false
     private val d = act.resources.displayMetrics.density
+    private val COMMENT_COLOR = 0xFF6A1B9A.toInt()
     private fun dp(v: Int) = (v * d).toInt()
     private val timeFmt = SimpleDateFormat("HH:mm", Locale.ROOT)
     private val dayFmt = SimpleDateFormat("d.M.yyyy HH:mm", Locale.ROOT)
@@ -211,10 +212,51 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         return frame
     }
 
-    /** Icons per line in a row: 2 on narrow screens (folded Fold6, Note9), 4 when the list is ≥ 600 dp wide. */
+    /** Icons per line in a row (1.44): as many 46 dp icons as fit in 40 % of the list width, 2–5
+     *  (3 on the folded Fold6 and the Note9, 5 unfolded); more icons wrap to another line. */
     private fun iconsPerLine(): Int {
         val w = if (list.width > 0) list.width / d else act.resources.configuration.screenWidthDp.toFloat()
-        return if (w >= 600) 4 else 2
+        return (w * 0.4f / 46f).toInt().coerceIn(2, 5)
+    }
+
+    private fun editComment(r: Row) {
+        val it = r.item
+        val old = Comments.get(act, it)
+        val et = android.widget.EditText(act).apply {
+            setText(old.orEmpty()); setSelection(text.length)
+            hint = "Kommentar (lagres bare på telefonen)"
+            minLines = 3; maxLines = 8; gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
+        val box = android.widget.FrameLayout(act).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(et) }
+        val what = when (it.kind) { CommItem.Kind.CALL -> "samtale"; CommItem.Kind.SMS -> "SMS"; CommItem.Kind.MMS -> "MMS" }
+        val b = AlertDialog.Builder(act)
+            .setTitle(if (old != null) "Rediger kommentar" else "Kommenter")
+            .setMessage("${title(r)} · ${when_(it.at)}")
+            .setView(box)
+            .setPositiveButton("Lagre") { _, _ ->
+                val t = et.text.toString()
+                if (Comments.set(act, it, t)) {
+                    EventLog.add(act, EventLog.COMMENT, if (t.isBlank()) "Kommentar slettet ($what)" else if (old != null) "Kommentar endret ($what)" else "Kommentar lagret ($what)")
+                    (list.adapter as BaseAdapter).notifyDataSetChanged()
+                }
+            }
+            .setNegativeButton("Avbryt", null)
+        if (old != null) b.setNeutralButton("Slett") { _, _ ->
+            AlertDialog.Builder(act).setMessage("Slette kommentaren?")
+                .setPositiveButton("Slett") { _, _ ->
+                    if (Comments.set(act, it, null)) {
+                        EventLog.add(act, EventLog.COMMENT, "Kommentar slettet ($what)")
+                        (list.adapter as BaseAdapter).notifyDataSetChanged()
+                    }
+                }
+                .setNegativeButton("Avbryt", null).show()
+        }
+        val dlg = b.create()
+        dlg.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        dlg.show()
+        et.requestFocus()
     }
 
     private fun adapter() = object : BaseAdapter() {
@@ -258,6 +300,11 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             col.addView(TextView(act).apply {
                 text = head; textSize = 15f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
             })
+            val comment = Comments.get(act, it)
+            if (comment != null) col.addView(TextView(act).apply {
+                text = "💬 $comment"; textSize = 13f; setTypeface(typeface, Typeface.ITALIC); setTextColor(COMMENT_COLOR)
+                maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
+            })
             it.subject?.let { sub -> col.addView(TextView(act).apply {
                 text = "«$sub»"; textSize = 13f; setTypeface(typeface, Typeface.ITALIC); maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -286,6 +333,8 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                 else if (lk == null) icons.add(iconBtn(R.drawable.ic_row_search, 0xFF1565C0.toInt(), "Slå opp nummer") { lookupMenu(r) })
                 else icons.add(iconBtn(R.drawable.ic_row_globe, 0xFF1565C0.toInt(), "Åpne i nettvisning") { LookupTab.open(act, it.number) })
             }
+            icons.add(if (comment != null) iconBtn(R.drawable.ic_row_comment_filled, COMMENT_COLOR, "Rediger kommentar") { editComment(r) }
+                else iconBtn(R.drawable.ic_row_comment, 0xFF757575.toInt(), "Kommenter") { editComment(r) })
             if (icons.isNotEmpty()) {
                 val buttons = LinearLayout(act).apply {
                     orientation = LinearLayout.VERTICAL
@@ -397,6 +446,8 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             .show()
     }
 
+    private var dlgRef: AlertDialog? = null
+
     private fun details(r: Row) {
         val it = r.item
         val msg = buildString {
@@ -420,6 +471,10 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         }
         val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(12), dp(20), dp(8)) }
         box.addView(TextView(act).apply { text = msg; textSize = 14f; setTextIsSelectable(true) })
+        Comments.get(act, it)?.let { c -> box.addView(TextView(act).apply {
+            text = "💬 $c"; textSize = 14f; setTypeface(typeface, Typeface.ITALIC); setTextColor(COMMENT_COLOR)
+            setTextIsSelectable(true); setPadding(0, dp(8), 0, 0)
+        }) }
         if (it.parts.isNotEmpty()) {
             val w = act.resources.displayMetrics.widthPixels - dp(100)
             it.images.forEach { part ->
@@ -443,7 +498,11 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         r.recs.forEachIndexed { i, rec -> buttons.addView(small(if (r.recs.size > 1) "▶ Opptak ${i + 1}" else "▶ Opptak") { Player.show(act, rec, title(r)) }) }
         if (r.contact == null && Phone.isNorwegian(Phone.key(it.number)))
             buttons.addView(small("🌐 Nettvisning") { LookupTab.open(act, it.number) })
-        if (buttons.childCount > 0) box.addView(buttons)
-        AlertDialog.Builder(act).setTitle(title(r)).setView(ScrollView(act).apply { addView(box) }).setPositiveButton("OK", null).show()
+        val hasComment = Comments.get(act, it) != null
+        buttons.addView(small(if (hasComment) "💬 Rediger kommentar" else "💬 Kommenter") { dlgRef?.dismiss(); editComment(r) })
+        if (buttons.childCount > 0) box.addView(HorizontalScrollView(act).apply { addView(buttons) })
+        val dlg = AlertDialog.Builder(act).setTitle(title(r)).setView(ScrollView(act).apply { addView(box) }).setPositiveButton("OK", null).create()
+        dlgRef = dlg
+        dlg.show()
     }
 }

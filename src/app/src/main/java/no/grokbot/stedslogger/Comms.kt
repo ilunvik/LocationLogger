@@ -21,6 +21,8 @@ data class CommItem(
     val subject: String? = null,
     val parts: List<MmsPart> = emptyList(),
     val others: List<String> = emptyList(),
+    /** Provider row id (CallLog _ID / sms _id, 1.44; MMS uses [mmsId]) – key for [Comments]. */
+    val rowId: Long = 0,
 ) {
     val images get() = parts.filter { it.isImage }
     val attachments get() = parts.filter { !it.isText }
@@ -83,7 +85,7 @@ object Comms {
         val out = ArrayList<CommItem>()
         try {
             ctx.contentResolver.query(CallLog.Calls.CONTENT_URI,
-                arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.DATE, CallLog.Calls.DURATION, CallLog.Calls.TYPE, CallLog.Calls.CACHED_NAME),
+                arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.DATE, CallLog.Calls.DURATION, CallLog.Calls.TYPE, CallLog.Calls.CACHED_NAME, CallLog.Calls._ID),
                 null, null, "${CallLog.Calls.DATE} DESC")?.use { c ->
                 while (c.moveToNext() && out.size < MAX_CALLS) {
                     val dir = when (c.getInt(3)) {
@@ -95,7 +97,7 @@ object Comms {
                         CallLog.Calls.VOICEMAIL_TYPE -> CommItem.Dir.VOICEMAIL
                         else -> CommItem.Dir.OTHER
                     }
-                    out += CommItem(CommItem.Kind.CALL, dir, c.getLong(1), c.getString(0), c.getString(4), c.getLong(2))
+                    out += CommItem(CommItem.Kind.CALL, dir, c.getLong(1), c.getString(0), c.getString(4), c.getLong(2), rowId = c.getLong(5))
                 }
             }
         } catch (e: Exception) { EventLog.error(ctx, "Kunne ikke lese samtaleloggen", e) }
@@ -107,7 +109,7 @@ object Comms {
         val out = ArrayList<CommItem>()
         try {
             ctx.contentResolver.query(Telephony.Sms.CONTENT_URI,
-                arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.BODY, Telephony.Sms.TYPE),
+                arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.BODY, Telephony.Sms.TYPE, Telephony.Sms._ID),
                 null, null, "${Telephony.Sms.DATE} DESC")?.use { c ->
                 while (c.moveToNext() && out.size < MAX_SMS) {
                     val dir = when (c.getInt(3)) {
@@ -115,7 +117,7 @@ object Comms {
                         Telephony.Sms.MESSAGE_TYPE_SENT, Telephony.Sms.MESSAGE_TYPE_OUTBOX -> CommItem.Dir.OUT
                         else -> CommItem.Dir.OTHER
                     }
-                    out += CommItem(CommItem.Kind.SMS, dir, c.getLong(1), c.getString(0), null, text = c.getString(2))
+                    out += CommItem(CommItem.Kind.SMS, dir, c.getLong(1), c.getString(0), null, text = c.getString(2), rowId = c.getLong(4))
                 }
             }
         } catch (e: Exception) { EventLog.error(ctx, "Kunne ikke lese SMS", e) }

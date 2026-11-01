@@ -33,6 +33,7 @@ object EventLog {
     const val LOOKUP = "OPPSLAG"   // directory lookups of unknown numbers, contacts added (since 1.32)
     const val RECORDING = "OPPTAK" // call recordings: playback, experimental recorder (since 1.32)
     const val TTS = "TTS"          // read-aloud of callers / SMS (since 1.32)
+    const val COMMENT = "KOMMENTAR" // comment saved / deleted on a call or message (since 1.44; never the text)
     const val NET = "NETT"         // network changes
     const val SERVICE = "TJENESTE" // service start/stop, boot, alarm restarts
     const val ERROR = "FEIL"       // errors and exceptions
