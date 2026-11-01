@@ -285,6 +285,9 @@ number sent to the directory lookup.
   contacts) and globe (web view). Long-press shows the label, which is also the accessibility description.
   Since 1.42 the icons sit side by side (2 per line on narrow screens such as the folded Fold6 or the
   Note9, 4 per line when the list is at least 600 dp wide; more icons wrap to a second line).
+  Since 1.43 the number, direction/kind, time and duration follow the name on the same line in small grey
+  text (wrapping to the next line only at the " · " separators when it does not fit), so the message text
+  comes right after it.
   Since 1.40 the list has a slim drag handle (20 dp touch strip, 5 dp thumb, grabbed only on or near the
   thumb) instead of Android's fast scroller, whose 48 dp touch zone made taps on the icons scroll the list;
   the icon column keeps 28 dp from the right edge.

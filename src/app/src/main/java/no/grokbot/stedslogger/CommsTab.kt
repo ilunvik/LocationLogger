@@ -239,15 +239,24 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
             row.addView(col)
-            col.addView(TextView(act).apply {
-                text = title(r); textSize = 15f; setTypeface(typeface, Typeface.BOLD)
-                if (it.dir == CommItem.Dir.MISSED || it.dir == CommItem.Dir.REJECTED) setTextColor(0xFFC62828.toInt())
-            })
+            // 1.43: name (bold) and meta (number · kind · time · duration, small grey) on one line; the meta
+            // wraps after the name only when it does not fit, and only at the " · " separators
             val named = r.contact != null || r.lookup?.name != null || it.cachedName != null
+            val meta = listOfNotNull(if (named) Phone.pretty(it.number) else null, kindText(it), when_(it.at),
+                dur(it.durationS).ifEmpty { null }).joinToString(" · ") { p -> p.replace(' ', '\u00A0') }
+            val name = title(r)
+            val head = android.text.SpannableStringBuilder(name).apply {
+                setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, name.length, 0)
+                if (it.dir == CommItem.Dir.MISSED || it.dir == CommItem.Dir.REJECTED)
+                    setSpan(android.text.style.ForegroundColorSpan(0xFFC62828.toInt()), 0, name.length, 0)
+                append("   ")
+                val s0 = length
+                append(meta)
+                setSpan(android.text.style.RelativeSizeSpan(12.5f / 15f), s0, length, 0)  // 12.5 sp
+                setSpan(android.text.style.ForegroundColorSpan(0xFF616161.toInt()), s0, length, 0)
+            }
             col.addView(TextView(act).apply {
-                text = listOfNotNull(if (named) Phone.pretty(it.number) else null, kindText(it), when_(it.at),
-                    dur(it.durationS).ifEmpty { null }).joinToString(" · ")
-                textSize = 12.5f; setTextColor(0xFF616161.toInt())
+                text = head; textSize = 15f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
             })
             it.subject?.let { sub -> col.addView(TextView(act).apply {
                 text = "«$sub»"; textSize = 13f; setTypeface(typeface, Typeface.ITALIC); maxLines = 1
