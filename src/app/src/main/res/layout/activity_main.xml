@@ -733,14 +733,24 @@
                 android:layout_height="wrap_content"
                 android:visibility="gone"
                 android:text="Gi tilgang til samtaler, SMS og kontakter" />
-            <ListView
-                android:id="@+id/commList"
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="1"
-                android:divider="#E0E0E0"
-                android:dividerHeight="1dp"
-                android:fastScrollEnabled="true" />
+                android:layout_weight="1">
+                <ListView
+                    android:id="@+id/commList"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:divider="#E0E0E0"
+                    android:dividerHeight="1dp"
+                    android:scrollbars="none" />
+                <!-- slim 20 dp drag handle instead of the 48 dp fast-scroll touch zone (1.40) -->
+                <no.grokbot.stedslogger.SlimScrollHandle
+                    android:id="@+id/commScroll"
+                    android:layout_width="20dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="end" />
+            </FrameLayout>
         </LinearLayout>
 
         <!-- Tab 5 (1.36): in-app browser for manual lookups (built in code by LookupTab) -->

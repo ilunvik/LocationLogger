@@ -45,6 +45,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
 
     init {
         list.adapter = adapter()
+        act.findViewById<SlimScrollHandle>(R.id.commScroll).attach(list)
         chips.forEachIndexed { i, b -> b.setOnClickListener { filter = Filter.values()[i]; applyFilter() } }
         act.findViewById<Button>(R.id.btnCommRefresh).setOnClickListener { Phone.clearCache(); load() }
         permBtn.setOnClickListener { askPermissions() }
@@ -257,8 +258,8 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                     gravity = android.view.Gravity.CENTER_VERTICAL; marginStart = dp(2)
-                    // keep clear of the ListView's fast-scroll thumb on the right edge (1.39)
-                    marginEnd = dp(20)
+                    // keep clear of the 20 dp SlimScrollHandle on the right edge (+4 dp row padding = 28 dp gap)
+                    marginEnd = dp(24)
                 }
             }
             r.recs.forEachIndexed { i, rec ->
