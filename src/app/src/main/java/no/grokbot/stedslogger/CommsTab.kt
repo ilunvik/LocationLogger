@@ -174,6 +174,38 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         setOnClickListener { onClick() }
     }
 
+    /** Compact square icon button (44 dp touch target) for the row's action column; [badge] = small number
+     *  in the corner (several recordings). The label is the content description and long-press tooltip. */
+    private fun iconBtn(icon: Int, tint: Int, label: String, badge: Int? = null, onClick: () -> Unit): View {
+        val size = dp(44)
+        val frame = android.widget.FrameLayout(act).apply {
+            layoutParams = LinearLayout.LayoutParams(size, size)
+            contentDescription = label
+            tooltipText = label
+            isClickable = true
+            isFocusable = false
+            val tv = android.util.TypedValue()
+            act.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, tv, true)
+            if (tv.resourceId != 0) setBackgroundResource(tv.resourceId)
+            setOnClickListener { onClick() }
+        }
+        frame.addView(ImageView(act).apply {
+            setImageResource(icon)
+            imageTintList = android.content.res.ColorStateList.valueOf(tint)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            layoutParams = android.widget.FrameLayout.LayoutParams(dp(28), dp(28), android.view.Gravity.CENTER)
+        })
+        if (badge != null) frame.addView(TextView(act).apply {
+            text = badge.toString(); textSize = 10f; setTypeface(typeface, Typeface.BOLD); setTextColor(tint)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            layoutParams = android.widget.FrameLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT, android.view.Gravity.BOTTOM or android.view.Gravity.END).apply {
+                marginEnd = dp(5); bottomMargin = dp(3)
+            }
+        })
+        return frame
+    }
+
     private fun adapter() = object : BaseAdapter() {
         override fun getCount() = shown.size
         override fun getItem(position: Int) = shown[position]
@@ -218,29 +250,26 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                 ellipsize = android.text.TextUtils.TruncateAt.END
             })
             if (it.parts.isNotEmpty()) col.addView(attachmentStrip(r, dp(72), 4))
-            // Action buttons in a compact column to the right of the text, so the text keeps the width
+            // Icon buttons in a narrow column to the right of the text, so the text keeps the width
             val buttons = LinearLayout(act).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                    gravity = android.view.Gravity.CENTER_VERTICAL; marginStart = dp(4)
+                    gravity = android.view.Gravity.CENTER_VERTICAL; marginStart = dp(2)
                 }
             }
-            fun side(label: String, onClick: () -> Unit) = small(label, onClick).apply {
-                minWidth = dp(76); minimumWidth = dp(76); maxLines = 1
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT)
-            }
             r.recs.forEachIndexed { i, rec ->
-                buttons.addView(side(if (r.recs.size > 1) "▶ Opptak ${i + 1}" else "▶ Opptak") { Player.show(act, rec, title(r)) })
+                val n = if (r.recs.size > 1) i + 1 else null
+                buttons.addView(iconBtn(R.drawable.ic_row_play, 0xFF2E7D32.toInt(),
+                    if (n != null) "Spill av opptak $n" else "Spill av opptak", n) { Player.show(act, rec, title(r)) })
             }
             val k = Phone.key(it.number)
             if (r.contact == null && Phone.isNorwegian(k)) {
                 val lk = r.lookup
-                if (lk?.name != null) buttons.addView(side("+ Kontakt") { addContact(r) })
-                else if (lk == null) buttons.addView(side("🔍 Slå opp") { lookupMenu(r) })
-                else buttons.addView(side("🌐 Nett") { LookupTab.open(act, it.number) })
+                if (lk?.name != null) buttons.addView(iconBtn(R.drawable.ic_row_person_add, 0xFF1565C0.toInt(), "Legg til i kontakter") { addContact(r) })
+                else if (lk == null) buttons.addView(iconBtn(R.drawable.ic_row_search, 0xFF1565C0.toInt(), "Slå opp nummer") { lookupMenu(r) })
+                else buttons.addView(iconBtn(R.drawable.ic_row_globe, 0xFF1565C0.toInt(), "Åpne i nettvisning") { LookupTab.open(act, it.number) })
             }
             if (buttons.childCount > 0) row.addView(buttons)
             return row

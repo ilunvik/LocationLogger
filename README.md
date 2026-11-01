@@ -275,10 +275,12 @@ number sent to the directory lookup.
   when switching tabs and when the Fold is folded or unfolded (MainActivity handles those configuration
   changes itself); Android back steps through the page history. **🌐 Nettvisning** on a call row switches
   to this tab with the number filled in and loaded.
-- **Row buttons (1.37)** – the action buttons of a Samtaler row (**▶ Opptak**, **🔍 Slå opp**, **+ Kontakt**,
-  **🌐 Nett**) sit in a compact column to the right of the text instead of under it, so the name, number,
-  time and message text get the full width; MMS thumbnails and attachment chips stay under the text.
-- **Add to contacts** – **+ Kontakt** (*Legg til i kontakter* before 1.37) on an entry with a looked-up name creates a new phone
+- **Row buttons (1.37, icons since 1.38)** – the action buttons of a Samtaler row sit in a narrow column to the
+  right of the text, so the name, number, time and message text get the full width (MMS thumbnails and
+  attachment chips stay under the text). They are 44 dp Material icon buttons: ▶ play (a recording; with a
+  small number 1, 2 … when there are several), magnifying glass (look up the number), person-add (add to
+  contacts) and globe (web view). Long-press shows the label, which is also the accessibility description.
+- **Add to contacts** – the person-add icon (*Legg til i kontakter*) on an entry with a looked-up name creates a new phone
   contact (name, number, note "Oppslag via LocationLogger (source, date)"). With *Legg automatisk til
   oppslag i kontakter* (off by default) this happens after every successful lookup. An existing contact
   is never changed or overwritten. **Kontaktlager** (1.35, button under that setting) picks where new contacts are
