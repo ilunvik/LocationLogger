@@ -218,18 +218,31 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                 ellipsize = android.text.TextUtils.TruncateAt.END
             })
             if (it.parts.isNotEmpty()) col.addView(attachmentStrip(r, dp(72), 4))
-            val buttons = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
+            // Action buttons in a compact column to the right of the text, so the text keeps the width
+            val buttons = LinearLayout(act).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    gravity = android.view.Gravity.CENTER_VERTICAL; marginStart = dp(4)
+                }
+            }
+            fun side(label: String, onClick: () -> Unit) = small(label, onClick).apply {
+                minWidth = dp(76); minimumWidth = dp(76); maxLines = 1
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
             r.recs.forEachIndexed { i, rec ->
-                buttons.addView(small(if (r.recs.size > 1) "▶ Opptak ${i + 1}" else "▶ Opptak") { Player.show(act, rec, title(r)) })
+                buttons.addView(side(if (r.recs.size > 1) "▶ Opptak ${i + 1}" else "▶ Opptak") { Player.show(act, rec, title(r)) })
             }
             val k = Phone.key(it.number)
             if (r.contact == null && Phone.isNorwegian(k)) {
                 val lk = r.lookup
-                if (lk?.name != null) buttons.addView(small("+ Legg til i kontakter") { addContact(r) })
-                else if (lk == null) buttons.addView(small("🔍 Slå opp") { lookupMenu(r) })
-                else buttons.addView(small("🌐 Nettvisning") { LookupTab.open(act, it.number) })
+                if (lk?.name != null) buttons.addView(side("+ Kontakt") { addContact(r) })
+                else if (lk == null) buttons.addView(side("🔍 Slå opp") { lookupMenu(r) })
+                else buttons.addView(side("🌐 Nett") { LookupTab.open(act, it.number) })
             }
-            if (buttons.childCount > 0) col.addView(buttons)
+            if (buttons.childCount > 0) row.addView(buttons)
             return row
         }
     }
