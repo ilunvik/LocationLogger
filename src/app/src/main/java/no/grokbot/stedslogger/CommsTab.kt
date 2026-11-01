@@ -46,6 +46,10 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
     init {
         list.adapter = adapter()
         act.findViewById<SlimScrollHandle>(R.id.commScroll).attach(list)
+        // folding/unfolding changes the width without recreating the activity: rebuild rows for iconsPerLine()
+        list.addOnLayoutChangeListener { _, l, _, r, _, ol, _, or, _ ->
+            if (r - l != or - ol && or - ol > 0) list.post { (list.adapter as BaseAdapter).notifyDataSetChanged() }
+        }
         chips.forEachIndexed { i, b -> b.setOnClickListener { filter = Filter.values()[i]; applyFilter() } }
         act.findViewById<Button>(R.id.btnCommRefresh).setOnClickListener { Phone.clearCache(); load() }
         permBtn.setOnClickListener { askPermissions() }
@@ -207,6 +211,12 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         return frame
     }
 
+    /** Icons per line in a row: 2 on narrow screens (folded Fold6, Note9), 4 when the list is ≥ 600 dp wide. */
+    private fun iconsPerLine(): Int {
+        val w = if (list.width > 0) list.width / d else act.resources.configuration.screenWidthDp.toFloat()
+        return if (w >= 600) 4 else 2
+    }
+
     private fun adapter() = object : BaseAdapter() {
         override fun getCount() = shown.size
         override fun getItem(position: Int) = shown[position]
@@ -252,29 +262,42 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             })
             if (it.parts.isNotEmpty()) col.addView(attachmentStrip(r, dp(72), 4))
             // Icon buttons in a narrow column to the right of the text, so the text keeps the width
-            val buttons = LinearLayout(act).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                    gravity = android.view.Gravity.CENTER_VERTICAL; marginStart = dp(2)
-                    // keep clear of the 20 dp SlimScrollHandle on the right edge (+4 dp row padding = 28 dp gap)
-                    marginEnd = dp(24)
-                }
-            }
+            // Icon buttons side by side to the right of the text (1.42), vertically centred; at most
+            // iconsPerLine() per line, extra icons wrap to a second line so the text keeps its width
+            val icons = ArrayList<View>()
             r.recs.forEachIndexed { i, rec ->
                 val n = if (r.recs.size > 1) i + 1 else null
-                buttons.addView(iconBtn(R.drawable.ic_row_play, 0xFF2E7D32.toInt(),
+                icons.add(iconBtn(R.drawable.ic_row_play, 0xFF2E7D32.toInt(),
                     if (n != null) "Spill av opptak $n" else "Spill av opptak", n) { Player.show(act, rec, title(r)) })
             }
             val k = Phone.key(it.number)
             if (r.contact == null && Phone.isNorwegian(k)) {
                 val lk = r.lookup
-                if (lk?.name != null) buttons.addView(iconBtn(R.drawable.ic_row_person_add, 0xFF1565C0.toInt(), "Legg til i kontakter") { addContact(r) })
-                else if (lk == null) buttons.addView(iconBtn(R.drawable.ic_row_search, 0xFF1565C0.toInt(), "Slå opp nummer") { lookupMenu(r) })
-                else buttons.addView(iconBtn(R.drawable.ic_row_globe, 0xFF1565C0.toInt(), "Åpne i nettvisning") { LookupTab.open(act, it.number) })
+                if (lk?.name != null) icons.add(iconBtn(R.drawable.ic_row_person_add, 0xFF1565C0.toInt(), "Legg til i kontakter") { addContact(r) })
+                else if (lk == null) icons.add(iconBtn(R.drawable.ic_row_search, 0xFF1565C0.toInt(), "Slå opp nummer") { lookupMenu(r) })
+                else icons.add(iconBtn(R.drawable.ic_row_globe, 0xFF1565C0.toInt(), "Åpne i nettvisning") { LookupTab.open(act, it.number) })
             }
-            if (buttons.childCount > 0) row.addView(buttons)
+            if (icons.isNotEmpty()) {
+                val buttons = LinearLayout(act).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.END
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                        gravity = android.view.Gravity.CENTER_VERTICAL; marginStart = dp(2)
+                        // keep clear of the 20 dp SlimScrollHandle on the right edge (+4 dp row padding = 28 dp gap)
+                        marginEnd = dp(24)
+                    }
+                }
+                icons.chunked(iconsPerLine()).forEach { chunk ->
+                    val line = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.END }
+                    chunk.forEachIndexed { i, v ->
+                        (v.layoutParams as LinearLayout.LayoutParams).marginStart = if (i > 0) dp(2) else 0
+                        line.addView(v)
+                    }
+                    buttons.addView(line)
+                }
+                row.addView(buttons)
+            }
             return row
         }
     }
