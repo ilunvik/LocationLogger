@@ -29,7 +29,12 @@ class LogTab(private val act: Activity) {
         private const val ALL = "Alle typer"
         private const val VISIT_LIST = "BESØKSLISTE"
         /** Clipboard / share intents go through Binder (~1 MB limit): keep the text below this. */
+        /** Cap for Kopier (clipboard goes through Binder, ~1 MB per transaction). */
         private const val MAX_SHARE_CHARS = 400_000
+        /** Del: the file has no Binder limit; this only guards against absurd sizes (~50 MB). */
+        private const val MAX_FILE_CHARS = 25_000_000
+        /** Del: short preview in EXTRA_TEXT for apps that only take text. */
+        private const val PREVIEW_CHARS = 2_000
     }
 
     private val list: ListView = act.findViewById(R.id.logList)
@@ -142,13 +147,13 @@ class LogTab(private val act: Activity) {
 
     private fun line(e: LogEntry) = "${fmt.format(Date(e.at))}\t${e.type}\t${e.msg}"
 
-    /** The shown entries as text, newest first (cut to [MAX_SHARE_CHARS]). */
-    private fun text(): String {
+    /** The shown entries as text, newest first (cut to [max] chars). */
+    private fun text(max: Int = MAX_SHARE_CHARS): String {
         val sb = StringBuilder()
         sb.append("LocationLogger-logg, ${shown.size} oppføringer, tidssone ${java.util.TimeZone.getDefault().id}\n")
         for (e in shown) {
             val l = line(e)
-            if (sb.length + l.length + 1 > MAX_SHARE_CHARS) { sb.append("… (avkortet)\n"); break }
+            if (sb.length + l.length + 1 > max) { sb.append("… (avkortet)\n"); break }
             sb.append(l).append('\n')
         }
         return sb.toString()
@@ -164,13 +169,38 @@ class LogTab(private val act: Activity) {
         }
     }
 
+    /**
+     * Del (1.41): the log is written to cache/share/locationlogger-log-<time>.txt and shared as a file
+     * (content:// URI from PartProvider, read permission granted) with a short text preview. Before 1.41
+     * the whole log (up to 400 000 chars) went in EXTRA_TEXT, which is too big for a Binder transaction
+     * (~1 MB, and the chooser copies it again), so the chooser silently never appeared.
+     */
     private fun share() {
-        try {
-            act.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
-                .putExtra(Intent.EXTRA_SUBJECT, "LocationLogger-logg")
-                .putExtra(Intent.EXTRA_TEXT, text()), "Del loggen"))
-        } catch (e: Exception) {
-            Toast.makeText(act, "Kunne ikke dele: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
-        }
+        val entries = shown.size
+        Thread {
+            try {
+                val all = text(MAX_FILE_CHARS)
+                val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.ROOT).format(Date())
+                val uri = PartProvider.shareFile(act, "locationlogger-log-$stamp.txt", all)
+                val preview = if (all.length <= PREVIEW_CHARS) all
+                    else all.substring(0, all.lastIndexOf('\n', PREVIEW_CHARS).let { if (it > 0) it else PREVIEW_CHARS }) +
+                        "\n… (hele loggen, $entries oppføringer, ligger i vedlagt fil)\n"
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .putExtra(Intent.EXTRA_SUBJECT, "LocationLogger-logg $stamp")
+                    .putExtra(Intent.EXTRA_TEXT, preview)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                send.clipData = ClipData.newUri(act.contentResolver, "LocationLogger-logg", uri)
+                act.runOnUiThread {
+                    try {
+                        act.startActivity(Intent.createChooser(send, "Del loggen").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                    } catch (e: Exception) {
+                        Toast.makeText(act, "Kunne ikke dele: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                act.runOnUiThread { Toast.makeText(act, "Kunne ikke lage loggfil: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show() }
+            }
+        }.start()
     }
 }

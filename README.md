@@ -61,7 +61,10 @@ The app has four tabs (the **Samtaler** tab since 1.32, see [Calls and SMS](#cal
   (`BESØKSLISTE`), dashboard reports and wireless-debugging changes (`ADB`), Shizuku running/stopped (`SHIZUKU`, 1.27+), Tailscale up/off and start attempts (`TAILSCALE`, 1.29+), network changes (`NETT`),
   service start/stop, boot, update and alarm restarts (`TJENESTE`) and errors (`FEIL`). A type filter,
   **Oppdater** (refresh), **Kopier** (copy as text), **Del** (share) and **Tøm** (clear, after confirming;
-  visits are kept). Long-press an entry to copy it.
+  visits are kept). Long-press an entry to copy it. Since 1.41 **Del** shares the shown entries as a text
+  file (`locationlogger-log-<yyyyMMdd-HHmm>.txt`, no length cap) with the first ~2000 characters as the
+  message text; before, the whole log went in the share text, which was too large and the share sheet
+  never opened.
 
 Back on the Settings or Log tab returns to Visits; the app reopens on the tab you used last.
 

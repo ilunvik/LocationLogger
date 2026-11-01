@@ -137,7 +137,19 @@ object MmsMedia {
 class PartProvider : ContentProvider() {
     companion object {
         private const val DIR = "mms"
+        /** 1.41: files shared from the app (Logg → Del), served as content://<authority>/share/<name>. */
+        private const val SHARE_DIR = "share"
         fun authority(ctx: Context) = ctx.packageName + ".parts"
+
+        /** Writes [text] (UTF-8) to cache/share/[name] and returns its content:// URI; files older than a day are removed. */
+        fun shareFile(ctx: Context, name: String, text: String): Uri {
+            val dir = File(ctx.cacheDir, SHARE_DIR).apply { mkdirs() }
+            val cutoff = System.currentTimeMillis() - 24 * 3600_000L
+            dir.listFiles()?.forEach { if (it.lastModified() < cutoff) it.delete() }
+            val f = File(dir, name)
+            f.writeText(text, Charsets.UTF_8)
+            return Uri.parse("content://${authority(ctx)}/$SHARE_DIR/${f.name}")
+        }
 
         fun copy(ctx: Context, part: MmsPart): Uri {
             val dir = File(ctx.cacheDir, DIR).apply { mkdirs() }
@@ -164,9 +176,15 @@ class PartProvider : ContentProvider() {
     }
 
     private fun file(uri: Uri): File? {
-        val name = uri.lastPathSegment ?: return null
+        val segs = uri.pathSegments
+        val dir = when {
+            segs.size == 1 -> DIR
+            segs.size == 2 && segs[0] == SHARE_DIR -> SHARE_DIR
+            else -> return null
+        }
+        val name = segs.last()
         if (name.contains('/') || name.startsWith(".")) return null
-        val f = File(File(context!!.cacheDir, DIR), name)
+        val f = File(File(context!!.cacheDir, dir), name)
         return f.takeIf { it.isFile }
     }
 
