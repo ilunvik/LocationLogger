@@ -257,6 +257,8 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                     gravity = android.view.Gravity.CENTER_VERTICAL; marginStart = dp(2)
+                    // keep clear of the ListView's fast-scroll thumb on the right edge (1.39)
+                    marginEnd = dp(20)
                 }
             }
             r.recs.forEachIndexed { i, rec ->
