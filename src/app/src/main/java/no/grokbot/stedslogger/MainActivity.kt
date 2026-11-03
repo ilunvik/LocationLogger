@@ -931,6 +931,70 @@ class MainActivity : Activity() {
         }
     }
 
+    private val COMMENT_COLOR = 0xFF6A1B9A.toInt()
+
+    /** Compact square icon button (44 dp touch target), as on the Samtaler rows (1.46). */
+    private fun commentBtn(icon: Int, tint: Int, label: String, onClick: () -> Unit): android.view.View {
+        val size = dp(44)
+        val frame = android.widget.FrameLayout(this).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(size, size).apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL; marginStart = dp(4)
+            }
+            contentDescription = label
+            tooltipText = label
+            isClickable = true
+            isFocusable = false
+            val tv = android.util.TypedValue()
+            theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, tv, true)
+            if (tv.resourceId != 0) setBackgroundResource(tv.resourceId)
+            setOnClickListener { onClick() }
+        }
+        frame.addView(android.widget.ImageView(this).apply {
+            setImageResource(icon)
+            imageTintList = android.content.res.ColorStateList.valueOf(tint)
+            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            layoutParams = android.widget.FrameLayout.LayoutParams(dp(28), dp(28), android.view.Gravity.CENTER)
+        })
+        return frame
+    }
+
+    /** Add / edit / delete the comment of a stop (1.46): same dialog as Samtaler; stored only on the phone. */
+    private fun editVisitComment(v: Visit, label: String) {
+        val old = Comments.get(this, v)
+        val et = android.widget.EditText(this).apply {
+            setText(old.orEmpty()); setSelection(text.length)
+            hint = "Kommentar (lagres bare på telefonen)"
+            minLines = 3; maxLines = 8; gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
+        val box = android.widget.FrameLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(et) }
+        val whenText = SimpleDateFormat("d.M.yyyy HH:mm", Locale.ROOT).format(Date(v.arrival))
+        val b = AlertDialog.Builder(this)
+            .setTitle(if (old != null) "Rediger kommentar" else "Kommenter")
+            .setMessage("$label · $whenText")
+            .setView(box)
+            .setPositiveButton("Lagre") { _, _ ->
+                val t = et.text.toString()
+                if (Comments.set(this, v, t)) {
+                    EventLog.add(this, EventLog.COMMENT, if (t.isBlank()) "Kommentar slettet (stans)" else if (old != null) "Kommentar endret (stans)" else "Kommentar lagret (stans)")
+                    refresh()
+                }
+            }
+            .setNegativeButton("Avbryt", null)
+        if (old != null) b.setNeutralButton("Slett") { _, _ ->
+            AlertDialog.Builder(this).setMessage("Slette kommentaren?")
+                .setPositiveButton("Slett") { _, _ ->
+                    if (Comments.set(this, v, null)) {
+                        EventLog.add(this, EventLog.COMMENT, "Kommentar slettet (stans)")
+                        refresh()
+                    }
+                }
+                .setNegativeButton("Avbryt", null).show()
+        }
+        b.show()
+    }
+
     private fun showVisits(all: List<Visit>, cand: Pair<String, Long>?, running: Boolean, trip: Double?) {
         visits.removeAllViews()
         val now = System.currentTimeMillis()
@@ -1006,19 +1070,42 @@ class MainActivity : Activity() {
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                     setTextIsSelectable(true)
                 })
-                textCol.addView(TextView(this@MainActivity).apply { text = times; textSize = 14f })
+                // 1.46: comment excerpt after the times on the same line (as in Samtaler 1.45)
+                val comment = Comments.get(this@MainActivity, v)
+                val timesText = android.text.SpannableStringBuilder(times).apply {
+                    if (comment != null) {
+                        append("   ")
+                        val c0 = length
+                        append("💬\u00A0").append(Comments.excerpt(comment))
+                        setSpan(android.text.style.RelativeSizeSpan(12.5f / 14f), c0, length, 0)
+                        setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), c0, length, 0)
+                        setSpan(android.text.style.ForegroundColorSpan(COMMENT_COLOR), c0, length, 0)
+                    }
+                }
+                textCol.addView(TextView(this@MainActivity).apply {
+                    text = timesText; textSize = 14f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
+                })
                 if (details.isNotEmpty()) textCol.addView(TextView(this@MainActivity).apply {
                     text = details
                     textSize = 13f
                     setTextColor(0xFF616161.toInt())
                 })
+                // 1.46: comment icon (same as Samtaler) between the text and the image, vertically centred
+                val cBtn = if (comment != null) commentBtn(R.drawable.ic_row_comment_filled, COMMENT_COLOR, "Rediger kommentar") { editVisitComment(v, label) }
+                    else commentBtn(R.drawable.ic_row_comment, 0xFF757575.toInt(), "Kommenter") { editVisitComment(v, label) }
+                row.addView(cBtn)
                 val lat = v.lat
                 val lon = v.lon
+                var img: android.view.View? = null
                 if (lat != null && lon != null) {
                     val slot = slotFor(label, lat, lon, placeMap)
-                    streetViewImage(slot, lat, lon)?.let { row.addView(it) }
+                    img = streetViewImage(slot, lat, lon)
+                    img?.let { row.addView(it) }
                     row.setOnLongClickListener { imageMenu(slot, lat, lon); true }
                 }
+                // Keep the icon well clear of the right edge: 16 dp when it is the last item, else the image's margin
+                (cBtn.layoutParams as android.widget.LinearLayout.LayoutParams).marginEnd = if (img == null) dp(16) else dp(4)
+                (img?.layoutParams as? android.widget.LinearLayout.LayoutParams)?.marginEnd = dp(12)
             })
             // Driving from the previous stop to this one (shown under the arriving stop, in its day)
             if (prev != null) {

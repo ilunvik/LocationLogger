@@ -227,6 +227,18 @@ this. The current visit shows "now" and its running duration; when logging is st
 "last seen". Visits without a recorded departure show "– ?" and "up to …" (time until the next visit).
 Each visit's coordinates are the average of its first and confirming fix.
 
+### Comments on stops (1.46)
+
+Every stop row has the same comment icon as the Samtaler rows (grey outline; filled purple when the stop
+has a comment), between the text and the Street View image (or 16 dp in from the right edge when the stop
+has no image). It opens the same dialog with **Lagre** / **Avbryt** / **Slett** (saving an empty text also
+deletes). An excerpt (first line, max ~60 characters) follows the stop's times on the same line (small,
+italic, purple, 💬). Comments are stored only on the phone in the same app-private preferences as the
+Samtaler comments, keyed by the stop's arrival time and a hash of its coordinates rounded to ~100 m (the
+coordinates themselves are not in the key); backup is off and they are never sent anywhere – not in the
+dashboard report, the Log or the shared log file. The Log only records `KOMMENTAR` lagret / endret /
+slettet "(stans)", never the text.
+
 ### Travelled distance
 
 The distance shown on a Driving row is the **travelled distance** from leaving the previous stop to

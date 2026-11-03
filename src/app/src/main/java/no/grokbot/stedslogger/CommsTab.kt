@@ -219,14 +219,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         return (w * 0.4f / 46f).toInt().coerceIn(2, 5)
     }
 
-    /** Row excerpt of a comment: first line, at most ~60 chars cut at a word boundary, "…" when shortened. */
-    private fun excerpt(c: String, max: Int = 60): String {
-        val first = c.trim().lineSequence().first().trim()
-        val more = first.length < c.trim().length
-        if (first.length <= max) return if (more) "$first …" else first
-        val cut = first.lastIndexOf(' ', max).takeIf { i -> i >= max / 2 } ?: max
-        return first.substring(0, cut).trimEnd() + "…"
-    }
+    private fun excerpt(c: String) = Comments.excerpt(c)
 
     private fun editComment(r: Row) {
         val it = r.item
