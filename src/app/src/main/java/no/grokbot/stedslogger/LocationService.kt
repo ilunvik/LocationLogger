@@ -84,7 +84,12 @@ class LocationService : Service() {
 
         /** Retry delay when the service could not go foreground (the alarm starts it again). */
         private const val RETRY_START_MS = 5 * 60_000L
+        /** Step-1 cached fix (≤ 5 min). Since 1.48 never evidence for a new place on its own: a place change
+         *  must be confirmed by a fresh GPS fix, else the check is ignored. */
         const val SRC_REUSED = "gjenbrukt"
+        /** Last-known fix used after the fresh steps failed (1.48: own label). May only extend the current
+         *  visit; a place change from it is ignored (GPS has just failed or is not allowed). */
+        const val SRC_LAST_KNOWN = "siste kjente"
         const val SRC_NETWORK = "nettverk"
         const val SRC_GPS = "GPS"
 
@@ -654,7 +659,7 @@ class LocationService : Service() {
         if (last != null) {
             toggleNote = listOfNotNull(toggleNote,
                 "last known fix (${last.provider}, ${ageMs(last) / 60_000} min old); no new fix: $detail").joinToString(" · ")
-            onLocation(last, SRC_REUSED)
+            onLocation(last, SRC_LAST_KNOWN)
         } else {
             val why = if (!hasBackgroundPermission())
                 " – location is allowed only while the app is in use; set it to \"Allow all the time\"" else ""
@@ -769,11 +774,28 @@ class LocationService : Service() {
      * visit – i.e. it would start a candidate or a new visit, where precision matters.
      */
     private fun needsGpsConfirm(loc: Location, source: String, place: String): Boolean {
-        if (source == SRC_GPS || !loc.hasAccuracy() || loc.accuracy <= PRECISE_ACC_M || !hasFine()) return false
+        if (source == SRC_GPS || !canConfirmWithGps() || !isPlaceChange(place)) return false
+        // 1.48: a reused (cached) fix is always confirmed when it points elsewhere, whatever its accuracy
+        if (source == SRC_REUSED) return true
+        return loc.hasAccuracy() && loc.accuracy > PRECISE_ACC_M && VisitStore.current(this) != null
+    }
+
+    private fun canConfirmWithGps(): Boolean {
+        if (!hasFine()) return false
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
-        if (fusedClient() == null && !enabled(lm, LocationManager.GPS_PROVIDER)) return false
-        val cur = VisitStore.current(this)?.name ?: return false
+        return fusedClient() != null || enabled(lm, LocationManager.GPS_PROVIDER)
+    }
+
+    /** True if [place] would start a candidate or a new visit (differs from the current visit, or there is none). */
+    private fun isPlaceChange(place: String): Boolean {
+        val cur = VisitStore.current(this)?.name ?: return true
         return !Places.same(Places.parse(Places.text(this)), cur, place)
+    }
+
+    /** 1.48: the check's position is not trusted – nothing is stored (no candidate, visit or distance). */
+    private fun ignoreCheck(logMsg: String, status: String) {
+        EventLog.add(this, EventLog.CHECK, logMsg)
+        endCheck(status)
     }
 
     private fun onLocation(loc: Location, source: String) {
@@ -840,16 +862,37 @@ class LocationService : Service() {
      */
     private fun onAddress(a: Address?, loc: Location, source: String) {
         val raw = a?.let { formatAddress(it) }
+        val stale = source == SRC_REUSED || source == SRC_LAST_KNOWN
+        // 1.48: an old fix is never evidence for a new place. Without an address it is not counted either.
+        if (stale && raw == null) {
+            ignoreCheck("Ingen adresse for gammel posisjon ($source) – ignorerer oppslaget", "Old position without an address – check ignored")
+            return
+        }
+        if (raw != null && stale && isPlaceChange(Places.resolve(this, raw)) && (source == SRC_LAST_KNOWN || !canConfirmWithGps())) {
+            ignoreCheck("Gammel posisjon ($source, ${ageMs(loc) / 1000} s) tyder på stedsbytte, kan ikke bekreftes med GPS – ignorerer oppslaget",
+                "Old position suggests a new place, not confirmed – check ignored")
+            return
+        }
         // 1.28: a coarse fix that would change the place is double-checked with GPS first
         if (raw != null && running && needsGpsConfirm(loc, source, Places.resolve(this, raw))) {
             val place = Places.resolve(this, raw)
-            EventLog.add(this, EventLog.CHECK, "Mulig stedsbytte ($place) med grov posisjon ±${Math.round(loc.accuracy)} m ($source) – bekrefter med GPS")
+            EventLog.add(this, EventLog.CHECK, "Mulig stedsbytte ($place) med " +
+                (if (stale) "gjenbrukt posisjon (${ageMs(loc) / 1000} s gammel, ±${Math.round(acc(loc))} m)" else "grov posisjon ±${Math.round(loc.accuracy)} m ($source)") +
+                " – bekrefter med GPS")
             holdCheckWake()
             requestCurrent(highAccuracy = true) { g ->
-                if (g != null && (!g.hasAccuracy() || g.accuracy < loc.accuracy)) onLocation(g, SRC_GPS)
-                else {
-                    EventLog.add(this, EventLog.CHECK, "GPS-bekreftelse ga ingen bedre posisjon – bruker $source-posisjonen")
-                    applyAddress(raw, loc)
+                val ok = g != null && isNew(g) && ageMs(g) <= CURRENT_MAX_AGE_MS + GPS_TIMEOUT_MS &&
+                    (!g.hasAccuracy() || g.accuracy < loc.accuracy || (stale && g.accuracy <= REUSE_MAX_ACC_M))
+                when {
+                    ok && g != null -> onLocation(g, SRC_GPS)
+                    // 1.48: never fall back to an old position – that gave false stops
+                    stale -> ignoreCheck("GPS-bekreftelse feilet – ignorerer oppslaget (bruker ikke gjenbrukt posisjon)",
+                        "GPS confirmation failed – check ignored")
+                    // a fresh network fix is kept as before (it is a current position, only coarse)
+                    else -> {
+                        EventLog.add(this, EventLog.CHECK, "GPS-bekreftelse ga ingen bedre posisjon – bruker den ferske $source-posisjonen")
+                        applyAddress(raw, loc)
+                    }
                 }
             }
             return

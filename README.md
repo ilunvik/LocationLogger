@@ -455,13 +455,22 @@ adb install -r app-release.apk
      timeout (the request is cancelled, so GPS is never left on).
   A fix coarser than ±30 m that would change the place (a candidate or a new visit instead of "still at
   the current visit") is double-checked with GPS before it is applied, so stop detection and the
-  Places matching are not fooled by a Wi-Fi fix on a neighbour's address. The thresholds are constants
+  Places matching are not fooled by a Wi-Fi fix on a neighbour's address.
+  **Since 1.48 an old fix is never evidence for a new place:** a reused fix (`gjenbrukt`) that points to
+  another place than the current visit (or when there is no visit yet) is always confirmed with GPS,
+  whatever its accuracy. If GPS gives no fresh fix (±100 m or better, or better than the reused one),
+  the check is ignored – no candidate, no visit, no distance – and the Log says "GPS-bekreftelse feilet –
+  ignorerer oppslaget". Before 1.48 the reused fix was then used anyway, which could create false stops.
+  The last-known fallback (`siste kjente`, below) may only extend the current visit; a place change from
+  it is ignored without another GPS attempt, and so is a reused fix that cannot be confirmed (no precise
+  location permission) or has no address. A fresh but coarse network fix keeps the old behaviour (used
+  if GPS finds nothing better), since it is a current position. The thresholds are constants
   in `LocationService`. Every fix is logged in the Log tab (`POSISJON`) with its source, accuracy and
   age; Settings shows how many times GPS was used today. The service no longer holds a permanent wake
   lock (the wake-up alarm drives the checks); each check and each dashboard report hold a short wake
   lock with a timeout, released when done.
   Without any new fix, a recent cached fix not used before (not older than the interval, at least 10
-  min) is used and marked "last known fix" in *Last check*. Otherwise *Last check* shows why, per
+  min) is used (`siste kjente`, 1.48) and marked "last known fix" in *Last check*. Otherwise *Last check* shows why, per
   provider (no fix / no answer in 60 s / permission denied), and hints when location is allowed only
   while the app is in use. Short intervals use more battery.
 - Turning location on/off by writing `LOCATION_MODE` works on most Android versions but is not
