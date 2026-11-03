@@ -85,7 +85,8 @@ class LogTab(private val act: Activity) {
     init {
         list.adapter = adapter
         list.setOnItemLongClickListener { _, _, pos, _ ->
-            copy(line(shown[pos]), "Oppføringen er kopiert"); true
+            // 1.47: shared helper (toast only below Android 13, which confirms by itself); the ListView vibrates
+            Clip.copy(act, "LocationLogger-logg", "${fmt.format(Date(shown[pos].at))}  ${shown[pos].type}\n${shown[pos].msg}"); true
         }
         filter.adapter = ArrayAdapter(act, android.R.layout.simple_spinner_dropdown_item, types)
         filter.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {

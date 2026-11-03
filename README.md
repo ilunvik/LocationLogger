@@ -239,6 +239,23 @@ coordinates themselves are not in the key); backup is off and they are never sen
 dashboard report, the Log or the shared log file. The Log only records `KOMMENTAR` lagret / endret /
 slettet "(stans)", never the text.
 
+### Long-press to copy (1.47)
+
+A long-press on an entry copies a plain-text version of it to the clipboard (Android 13+ shows its own
+confirmation; older versions get a short "Kopiert til utklippstavlen" toast):
+
+- **Visits** – place name (and the raw address if different), date, arrival – departure times, duration
+  and the comment. Stops with coordinates already opened the image menu on long-press, so that menu (on
+  the row and on the image) now has **Kopier** as its first item; stops without coordinates copy at once.
+  The stop name is no longer selectable text, so the long-press reaches the row.
+- **Samtaler** – name, number, kind and direction, date and time, duration or subject/message text, other
+  group participants, number of attachments and the comment. Clips with message text are marked
+  sensitive (`ClipDescription.EXTRA_IS_SENSITIVE`), so they are hidden in the clipboard preview.
+- **Logg** – already copied an entry on long-press; it now uses the same helper.
+
+The icon buttons take their own touches, and the long-press is cancelled when the finger moves to scroll.
+The copied text is never written to the Log.
+
 ### Travelled distance
 
 The distance shown on a Driving row is the **travelled distance** from leaving the previous stop to

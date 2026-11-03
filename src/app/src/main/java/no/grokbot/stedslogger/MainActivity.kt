@@ -412,7 +412,7 @@ class MainActivity : Activity() {
      * Square image (96 dp, rounded, right of the stop's text) for a stop: the Place's / spot's stored image, or Street View.
      * Tap opens Street View in the Google Maps app (via Ice Box if frozen; browser as fallback); long-press opens the image menu.
      */
-    private fun streetViewImage(slot: StreetView.Slot, lat: Double, lon: Double): android.view.View? {
+    private fun streetViewImage(slot: StreetView.Slot, lat: Double, lon: Double, copy: (() -> Unit)? = null): android.view.View? {
         if (StreetView.isHidden(this, slot)) return null
         if (StreetView.apiKey(this) == null && !StreetView.hasStored(this, slot)) return null
         if (StreetView.knownNone(slot)) return null
@@ -435,7 +435,7 @@ class MainActivity : Activity() {
                 BrowserOpener.openStreetView(this@MainActivity, lat, lon, StreetView.heading(this@MainActivity, slot),
                     StreetView.panoUrl(this@MainActivity, slot, lat, lon), REQ_ICEBOX)
             }
-            setOnLongClickListener { imageMenu(slot, lat, lon); true }
+            setOnLongClickListener { imageMenu(slot, lat, lon, copy); true }
         }
         val mem = StreetView.cached(slot)
         if (mem != null) { img.setImageBitmap(mem); return img }
@@ -448,7 +448,7 @@ class MainActivity : Activity() {
     }
 
     /** Long-press menu for a stop's image (also on the stop row, so a removed image can come back). */
-    private fun imageMenu(slot: StreetView.Slot, lat: Double, lon: Double) {
+    private fun imageMenu(slot: StreetView.Slot, lat: Double, lon: Double, copy: (() -> Unit)? = null) {
         val done: (String?) -> Unit = { err ->
             if (err != null) Toast.makeText(this, err, Toast.LENGTH_LONG).show()
             refresh()
@@ -457,7 +457,11 @@ class MainActivity : Activity() {
         val isPlace = slot.id.startsWith("p_")
         AlertDialog.Builder(this)
             .setTitle(if (isPlace) "Image for ${slot.label}" else "Image for this spot")
-            .setItems(arrayOf("Choose photo…", "Other Street View angle", "Use Street View from this stop", "Remove image")) { _, which ->
+            // 1.47: "Kopier" first when opened from a stop (long-press already opened this menu)
+            .setItems((if (copy != null) arrayOf("Kopier") else emptyArray<String>()) +
+                arrayOf("Choose photo…", "Other Street View angle", "Use Street View from this stop", "Remove image")) { _, w ->
+                if (copy != null && w == 0) { visits.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); copy(); return@setItems }
+                val which = if (copy != null) w - 1 else w
                 when (which) {
                     0 -> {
                         pickSlot = slot
@@ -1068,7 +1072,7 @@ class MainActivity : Activity() {
                     text = (if (isCurrent && running) "● " else "") + label
                     textSize = 16f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
-                    setTextIsSelectable(true)
+                    // 1.47: no longer selectable – a long-press on the row copies the whole stop instead
                 })
                 // 1.46: comment excerpt after the times on the same line (as in Samtaler 1.45)
                 val comment = Comments.get(this@MainActivity, v)
@@ -1096,12 +1100,28 @@ class MainActivity : Activity() {
                 row.addView(cBtn)
                 val lat = v.lat
                 val lon = v.lon
+                // 1.47: long-press copies the stop; stops with coordinates already had the image menu on
+                // long-press, so there it gets "Kopier" as its first item instead
+                val copyStop = {
+                    val text = buildString {
+                        append(label)
+                        if (label != v.name) append("\n").append(v.name)
+                        append("\n").append(SimpleDateFormat("EEE d.M.yyyy", Locale.forLanguageTag("nb")).format(Date(v.arrival)))
+                        append("\n").append(times)
+                        if (details.isNotEmpty()) append(" (").append(details).append(")")
+                        comment?.let { c -> append("\nKommentar: ").append(c) }
+                    }
+                    // the long-press itself vibrates; the menu item was reached by a long-press too
+                    Clip.copy(this@MainActivity, "LocationLogger", text)
+                }
                 var img: android.view.View? = null
                 if (lat != null && lon != null) {
                     val slot = slotFor(label, lat, lon, placeMap)
-                    img = streetViewImage(slot, lat, lon)
+                    img = streetViewImage(slot, lat, lon, copyStop)
                     img?.let { row.addView(it) }
-                    row.setOnLongClickListener { imageMenu(slot, lat, lon); true }
+                    row.setOnLongClickListener { imageMenu(slot, lat, lon, copyStop); true }
+                } else {
+                    row.setOnLongClickListener { copyStop(); true }
                 }
                 // Keep the icon well clear of the right edge: 16 dp when it is the last item, else the image's margin
                 (cBtn.layoutParams as android.widget.LinearLayout.LayoutParams).marginEnd = if (img == null) dp(16) else dp(4)

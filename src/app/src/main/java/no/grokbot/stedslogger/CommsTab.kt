@@ -55,6 +55,12 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         act.findViewById<Button>(R.id.btnCommRefresh).setOnClickListener { Phone.clearCache(); load() }
         permBtn.setOnClickListener { askPermissions() }
         list.setOnItemClickListener { _, _, pos, _ -> details(shown[pos]) }
+        // 1.47: long-press copies the entry (the icon buttons are clickable and take their own touches;
+        // the ListView cancels the long-press when the finger moves to scroll)
+        list.setOnItemLongClickListener { _, _, pos, _ ->
+            val r = shown[pos]
+            Clip.copy(act, "LocationLogger", copyText(r), sensitive = r.item.kind != CommItem.Kind.CALL && (r.item.text != null || r.item.subject != null)); true
+        }
     }
 
     fun load() {
@@ -451,6 +457,24 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             }
             .setNegativeButton("Avbryt", null)
             .show()
+    }
+
+    /** Plain text of one entry for the clipboard (1.47): name, number, kind, date/time, duration or text, comment. */
+    private fun copyText(r: Row): String {
+        val it = r.item
+        return buildString {
+            append(title(r))
+            val num = Phone.pretty(it.number)
+            if (num != title(r)) append("\n").append(num)
+            append("\n").append(kindText(it)).append(" · ").append(SimpleDateFormat("d.M.yyyy HH:mm", Locale.ROOT).format(Date(it.at)))
+            dur(it.durationS).takeIf { s -> s.isNotEmpty() }?.let { s -> append(" · ").append(s) }
+            if (it.others.isNotEmpty()) append("\n").append(if (it.dir == CommItem.Dir.OUT) "Også til: " else "Andre i gruppen: ")
+                .append(it.others.joinToString(", ") { n -> Phone.pretty(n) })
+            it.subject?.let { s -> append("\n«").append(s).append("»") }
+            it.text?.takeIf { t -> t.isNotBlank() }?.let { t -> append("\n").append(t) }
+            if (it.attachments.isNotEmpty()) append("\n(").append(it.attachments.size).append(" vedlegg)")
+            Comments.get(act, it)?.let { c -> append("\nKommentar: ").append(c) }
+        }
     }
 
     private var dlgRef: AlertDialog? = null
