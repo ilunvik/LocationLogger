@@ -38,7 +38,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
     private var loading = false
     private var autoLookupRunning = false
     private val d = act.resources.displayMetrics.density
-    private val COMMENT_COLOR = 0xFF6A1B9A.toInt()
+    private val COMMENT_COLOR = Ui.comment(act)
     private fun dp(v: Int) = (v * d).toInt()
     private val timeFmt = SimpleDateFormat("HH:mm", Locale.ROOT)
     private val dayFmt = SimpleDateFormat("d.M.yyyy HH:mm", Locale.ROOT)
@@ -52,7 +52,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             if (r - l != or - ol && or - ol > 0) list.post { (list.adapter as BaseAdapter).notifyDataSetChanged() }
         }
         chips.forEachIndexed { i, b -> b.setOnClickListener { filter = Filter.values()[i]; applyFilter() } }
-        act.findViewById<Button>(R.id.btnCommRefresh).setOnClickListener { Phone.clearCache(); load() }
+        act.findViewById<View>(R.id.btnCommRefresh).setOnClickListener { Phone.clearCache(); load() }
         permBtn.setOnClickListener { askPermissions() }
         list.setOnItemClickListener { _, _, pos, _ -> details(shown[pos]) }
         // 1.47: long-press copies the entry (the icon buttons are clickable and take their own touches;
@@ -104,8 +104,9 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         }
         chips.forEachIndexed { i, b ->
             val on = i == filter.ordinal
-            b.setTextColor(if (on) 0xFFFFFFFF.toInt() else 0xFF1565C0.toInt())
-            b.background.mutate().setTint(if (on) 0xFF1565C0.toInt() else 0xFFE3F2FD.toInt())
+            // 1.49: selected filter = filled primary pill, the others tonal (Material 3 filter chips)
+            b.setTextColor(Ui.c(act, if (on) R.color.m3_on_primary else R.color.m3_on_secondary_container))
+            b.setBackgroundResource(if (on) R.drawable.btn_filled else R.drawable.btn_tonal)
         }
         (list.adapter as BaseAdapter).notifyDataSetChanged()
         updateInfo()
@@ -147,16 +148,16 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
 
     private fun icon(it: CommItem): Pair<String, Int> = when (it.kind) {
         CommItem.Kind.CALL -> when (it.dir) {
-            CommItem.Dir.IN -> "↙" to 0xFF2E7D32.toInt()
-            CommItem.Dir.OUT -> "↗" to 0xFF1565C0.toInt()
-            CommItem.Dir.MISSED -> "✕" to 0xFFC62828.toInt()
-            CommItem.Dir.REJECTED -> "⊘" to 0xFFC62828.toInt()
-            CommItem.Dir.BLOCKED -> "⛔" to 0xFF757575.toInt()
-            CommItem.Dir.VOICEMAIL -> "✉" to 0xFF6A1B9A.toInt()
-            else -> "☎" to 0xFF424242.toInt()
+            CommItem.Dir.IN -> "↙" to Ui.green(act)
+            CommItem.Dir.OUT -> "↗" to Ui.blue(act)
+            CommItem.Dir.MISSED -> "✕" to Ui.red(act)
+            CommItem.Dir.REJECTED -> "⊘" to Ui.red(act)
+            CommItem.Dir.BLOCKED -> "⛔" to Ui.variant(act)
+            CommItem.Dir.VOICEMAIL -> "✉" to Ui.comment(act)
+            else -> "☎" to Ui.onSurface(act)
         }
-        CommItem.Kind.SMS -> (if (it.dir == CommItem.Dir.OUT) "💬↗" else "💬↙") to (if (it.dir == CommItem.Dir.OUT) 0xFF1565C0.toInt() else 0xFF2E7D32.toInt())
-        CommItem.Kind.MMS -> (if (it.dir == CommItem.Dir.OUT) "🖼↗" else "🖼↙") to (if (it.dir == CommItem.Dir.OUT) 0xFF1565C0.toInt() else 0xFF2E7D32.toInt())
+        CommItem.Kind.SMS -> (if (it.dir == CommItem.Dir.OUT) "💬↗" else "💬↙") to (if (it.dir == CommItem.Dir.OUT) Ui.blue(act) else Ui.green(act))
+        CommItem.Kind.MMS -> (if (it.dir == CommItem.Dir.OUT) "🖼↗" else "🖼↙") to (if (it.dir == CommItem.Dir.OUT) Ui.blue(act) else Ui.green(act))
     }
 
     private fun kindText(it: CommItem): String = when (it.kind) {
@@ -277,7 +278,9 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             val (ic, color) = icon(it)
             val row = LinearLayout(act).apply {
                 orientation = LinearLayout.HORIZONTAL
-                setPadding(dp(4), dp(6), dp(4), dp(6))
+                // 1.49: each entry is a rounded card (Material 3, like AudioAddict)
+                setPadding(dp(6), dp(10), dp(4), dp(10))
+                setBackgroundResource(R.drawable.card_ripple)
                 descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
             }
             row.addView(TextView(act).apply {
@@ -299,12 +302,12 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             val head = android.text.SpannableStringBuilder(name).apply {
                 setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, name.length, 0)
                 if (it.dir == CommItem.Dir.MISSED || it.dir == CommItem.Dir.REJECTED)
-                    setSpan(android.text.style.ForegroundColorSpan(0xFFC62828.toInt()), 0, name.length, 0)
+                    setSpan(android.text.style.ForegroundColorSpan(Ui.red(act)), 0, name.length, 0)
                 append("   ")
                 val s0 = length
                 append(meta)
                 setSpan(android.text.style.RelativeSizeSpan(12.5f / 15f), s0, length, 0)  // 12.5 sp
-                setSpan(android.text.style.ForegroundColorSpan(0xFF616161.toInt()), s0, length, 0)
+                setSpan(android.text.style.ForegroundColorSpan(Ui.variant(act)), s0, length, 0)
                 // 1.45: comment excerpt after the details (last, so the 3-line ellipsis cuts the comment, not the date)
                 if (comment != null) {
                     append("   ")
@@ -326,7 +329,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                 text = it.text; textSize = 13f; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
             })
             if (it.others.isNotEmpty()) col.addView(TextView(act).apply {
-                text = groupLine(it, 3); textSize = 12f; setTextColor(0xFF616161.toInt()); maxLines = 1
+                text = groupLine(it, 3); textSize = 12f; setTextColor(Ui.variant(act)); maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
             })
             if (it.parts.isNotEmpty()) col.addView(attachmentStrip(r, dp(72), 4))
@@ -336,18 +339,18 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
             val icons = ArrayList<View>()
             r.recs.forEachIndexed { i, rec ->
                 val n = if (r.recs.size > 1) i + 1 else null
-                icons.add(iconBtn(R.drawable.ic_row_play, 0xFF2E7D32.toInt(),
+                icons.add(iconBtn(R.drawable.ic_row_play, Ui.green(act),
                     if (n != null) "Spill av opptak $n" else "Spill av opptak", n) { Player.show(act, rec, title(r)) })
             }
             val k = Phone.key(it.number)
             if (r.contact == null && Phone.isNorwegian(k)) {
                 val lk = r.lookup
-                if (lk?.name != null) icons.add(iconBtn(R.drawable.ic_row_person_add, 0xFF1565C0.toInt(), "Legg til i kontakter") { addContact(r) })
-                else if (lk == null) icons.add(iconBtn(R.drawable.ic_row_search, 0xFF1565C0.toInt(), "Slå opp nummer") { lookupMenu(r) })
-                else icons.add(iconBtn(R.drawable.ic_row_globe, 0xFF1565C0.toInt(), "Åpne i nettvisning") { LookupTab.open(act, it.number) })
+                if (lk?.name != null) icons.add(iconBtn(R.drawable.ic_row_person_add, Ui.primary(act), "Legg til i kontakter") { addContact(r) })
+                else if (lk == null) icons.add(iconBtn(R.drawable.ic_row_search, Ui.primary(act), "Slå opp nummer") { lookupMenu(r) })
+                else icons.add(iconBtn(R.drawable.ic_row_globe, Ui.primary(act), "Åpne i nettvisning") { LookupTab.open(act, it.number) })
             }
             icons.add(if (comment != null) iconBtn(R.drawable.ic_row_comment_filled, COMMENT_COLOR, "Rediger kommentar") { editComment(r) }
-                else iconBtn(R.drawable.ic_row_comment, 0xFF757575.toInt(), "Kommenter") { editComment(r) })
+                else iconBtn(R.drawable.ic_row_comment, Ui.variant(act), "Kommenter") { editComment(r) })
             if (icons.isNotEmpty()) {
                 val buttons = LinearLayout(act).apply {
                     orientation = LinearLayout.VERTICAL
@@ -355,7 +358,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                     layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                         gravity = android.view.Gravity.CENTER_VERTICAL; marginStart = dp(2)
-                        // keep clear of the 20 dp SlimScrollHandle on the right edge (+4 dp row padding = 28 dp gap)
+                        // keep clear of the 20 dp SlimScrollHandle on the right edge (+4 dp card padding = 28 dp gap)
                         marginEnd = dp(24)
                     }
                 }
@@ -388,7 +391,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
         imgs.take(maxImages).forEach { part ->
             val iv = ImageView(act).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
-                setBackgroundColor(0xFFE0E0E0.toInt())
+                setBackgroundColor(Ui.placeholder(act))
                 contentDescription = "Bilde"
                 layoutParams = LinearLayout.LayoutParams(size, size).apply { marginEnd = dp(4) }
                 isFocusable = false
@@ -512,7 +515,7 @@ class CommsTab(private val act: Activity, private val askPermissions: () -> Unit
                 val iv = ImageView(act).apply {
                     adjustViewBounds = true; scaleType = ImageView.ScaleType.FIT_START
                     layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) }
-                    minimumHeight = dp(60); setBackgroundColor(0xFFF5F5F5.toInt())
+                    minimumHeight = dp(60); setBackgroundColor(Ui.placeholder(act))
                     setOnClickListener { MmsMedia.showImage(act, part, title(r)) }
                 }
                 Thread {

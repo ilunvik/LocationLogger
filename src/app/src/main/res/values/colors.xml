@@ -1,4 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 1.49: Material 3 palette like AudioAddict (seed #6750A4, same tonal mapping) -->
 <resources>
     <color name="ic_bg">#1565C0</color>
+    <color name="m3_primary">#564389</color>
+    <color name="m3_on_primary">#FFFFFF</color>
+    <color name="m3_primary_container">#E2DDEE</color>
+    <color name="m3_on_primary_container">#1A1429</color>
+    <color name="m3_secondary_container">#E3E1EA</color>
+    <color name="m3_on_secondary_container">#1C1924</color>
+    <color name="m3_tertiary">#894376</color>
+    <color name="m3_background">#FBFBFC</color>
+    <color name="m3_surface_container_low">#F4F4F6</color>
+    <color name="m3_surface_container">#EFEEF2</color>
+    <color name="m3_surface_container_high">#E9E8ED</color>
+    <color name="m3_surface_container_highest">#E4E2E9</color>
+    <color name="m3_on_surface">#1D1B20</color>
+    <color name="m3_on_surface_variant">#4B4950</color>
+    <color name="m3_outline">#7D7986</color>
+    <color name="m3_outline_variant">#D0CFD3</color>
+    <color name="m3_c_green">#2E7D32</color>
+    <color name="m3_c_blue">#1565C0</color>
+    <color name="m3_c_red">#C62828</color>
+    <color name="m3_c_purple">#6A1B9A</color>
+    <color name="m3_c_orange">#E65100</color>
+    <color name="m3_c_teal">#00796B</color>
+    <color name="m3_c_cyan">#00838F</color>
+    <color name="m3_c_indigo">#283593</color>
+    <color name="m3_c_brown">#5D4037</color>
+    <color name="m3_c_pink">#AD1457</color>
+    <color name="m3_c_grey">#616161</color>
 </resources>

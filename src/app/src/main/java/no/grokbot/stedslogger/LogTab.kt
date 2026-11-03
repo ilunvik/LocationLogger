@@ -55,7 +55,11 @@ class LogTab(private val act: Activity) {
             val tv = (convertView as? TextView) ?: TextView(act).apply {
                 textSize = 12.5f
                 val d = act.resources.displayMetrics.density
-                setPadding((4 * d).toInt(), (6 * d).toInt(), (4 * d).toInt(), (6 * d).toInt())
+                // 1.49: each entry is a rounded card (Material 3, like AudioAddict)
+                setPadding((14 * d).toInt(), (10 * d).toInt(), (14 * d).toInt(), (10 * d).toInt())
+                setBackgroundResource(R.drawable.card_ripple)
+                setTextColor(Ui.onSurface(act))
+                setLineSpacing(2 * d, 1f)
             }
             val e = shown[position]
             val head = "${fmt.format(Date(e.at))}  ${e.type}"
@@ -68,18 +72,19 @@ class LogTab(private val act: Activity) {
     }
 
     private fun colorFor(type: String): Int = when (type) {
-        EventLog.ERROR -> 0xFFC62828.toInt()
-        EventLog.ADB -> 0xFF6A1B9A.toInt()
-        EventLog.FIX -> 0xFF2E7D32.toInt()
-        EventLog.VISIT, VISIT_LIST -> 0xFF1565C0.toInt()
-        EventLog.NET -> 0xFFEF6C00.toInt()
-        EventLog.SHIZUKU -> 0xFF00838F.toInt()
-        EventLog.TAILSCALE -> 0xFF283593.toInt()
-        EventLog.BROWSER -> 0xFF4E342E.toInt()
-        EventLog.CALL, EventLog.SMS -> 0xFF00695C.toInt()
-        EventLog.LOOKUP -> 0xFFAD1457.toInt()
-        EventLog.RECORDING, EventLog.TTS -> 0xFF5D4037.toInt()
-        else -> 0xFF424242.toInt()
+        // 1.49: from the palette, with lighter variants in dark mode
+        EventLog.ERROR -> Ui.c(act, R.color.m3_c_red)
+        EventLog.ADB -> Ui.c(act, R.color.m3_c_purple)
+        EventLog.FIX -> Ui.c(act, R.color.m3_c_green)
+        EventLog.VISIT, VISIT_LIST -> Ui.c(act, R.color.m3_c_blue)
+        EventLog.NET -> Ui.c(act, R.color.m3_c_orange)
+        EventLog.SHIZUKU -> Ui.c(act, R.color.m3_c_cyan)
+        EventLog.TAILSCALE -> Ui.c(act, R.color.m3_c_indigo)
+        EventLog.BROWSER -> Ui.c(act, R.color.m3_c_brown)
+        EventLog.CALL, EventLog.SMS -> Ui.c(act, R.color.m3_c_teal)
+        EventLog.LOOKUP -> Ui.c(act, R.color.m3_c_pink)
+        EventLog.RECORDING, EventLog.TTS -> Ui.c(act, R.color.m3_c_brown)
+        else -> Ui.variant(act)
     }
 
     init {
@@ -93,13 +98,13 @@ class LogTab(private val act: Activity) {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) = applyFilter()
             override fun onNothingSelected(p: AdapterView<*>?) {}
         }
-        act.findViewById<Button>(R.id.btnLogRefresh).setOnClickListener { load() }
+        act.findViewById<View>(R.id.btnLogRefresh).setOnClickListener { load() }
         act.findViewById<Button>(R.id.btnLogCopy).setOnClickListener { copy(text(), "Loggen er kopiert (${shown.size} oppføringer)") }
         act.findViewById<Button>(R.id.btnLogShare).setOnClickListener { share() }
         act.findViewById<Button>(R.id.btnLogClear).setOnClickListener {
             AlertDialog.Builder(act)
                 .setTitle("Tømme loggen?")
-                .setMessage("Alle oppføringer i loggen slettes. Besøkene (fanen Visits) beholdes.")
+                .setMessage("Alle oppføringer i loggen slettes. Besøkene (fanen Besøk) beholdes.")
                 .setPositiveButton("Tøm") { _, _ ->
                     EventLog.afterPending {
                         EventLog.clear(act)

@@ -1,176 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 1.49: Material 3 look like AudioAddict: large title in a top bar, cards, pill buttons and a bottom
+     navigation bar with an indicator pill. The ids (tabX / tabXLabel / tabXLine, pages, controls) are unchanged. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/m3_background"
     android:orientation="vertical">
 
-    <LinearLayout
+    <!-- top app bar: the current tab's name -->
+    <TextView
+        android:id="@+id/topTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:elevation="2dp"
-        android:background="#FFFFFF"
-        android:orientation="horizontal">
-        <LinearLayout
-            android:id="@+id/tabVisits"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="?android:attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:orientation="vertical">
-            <TextView
-                android:id="@+id/tabVisitsLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:paddingTop="14dp"
-                android:paddingBottom="12dp"
-                android:text="Visits"
-                android:textAllCaps="true"
-
-                android:maxLines="1"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="9sp"
-                android:autoSizeMaxTextSize="14sp"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp"                android:textSize="14sp"
-                android:textStyle="bold" />
-            <View
-                android:id="@+id/tabVisitsLine"
-                android:layout_width="match_parent"
-                android:layout_height="3dp"
-                android:background="@color/ic_bg" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/tabComms"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="?android:attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:orientation="vertical">
-            <TextView
-                android:id="@+id/tabCommsLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:paddingTop="14dp"
-                android:paddingBottom="12dp"
-                android:text="Samtaler"
-                android:textAllCaps="true"
-
-                android:maxLines="1"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="9sp"
-                android:autoSizeMaxTextSize="14sp"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp"                android:textSize="14sp"
-                android:textStyle="bold" />
-            <View
-                android:id="@+id/tabCommsLine"
-                android:layout_width="match_parent"
-                android:layout_height="3dp"
-                android:background="@color/ic_bg" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/tabWeb"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="?android:attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:orientation="vertical">
-            <TextView
-                android:id="@+id/tabWebLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:paddingTop="14dp"
-                android:paddingBottom="12dp"
-                android:text="Oppslag"
-                android:textAllCaps="true"
-
-                android:maxLines="1"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="9sp"
-                android:autoSizeMaxTextSize="14sp"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp"                android:textSize="14sp"
-                android:textStyle="bold" />
-            <View
-                android:id="@+id/tabWebLine"
-                android:layout_width="match_parent"
-                android:layout_height="3dp"
-                android:background="@color/ic_bg" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/tabSettings"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="?android:attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:orientation="vertical">
-            <TextView
-                android:id="@+id/tabSettingsLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:paddingTop="14dp"
-                android:paddingBottom="12dp"
-                android:text="Settings"
-                android:textAllCaps="true"
-
-                android:maxLines="1"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="9sp"
-                android:autoSizeMaxTextSize="14sp"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp"                android:textSize="14sp"
-                android:textStyle="bold" />
-            <View
-                android:id="@+id/tabSettingsLine"
-                android:layout_width="match_parent"
-                android:layout_height="3dp"
-                android:background="@color/ic_bg" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/tabLog"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="?android:attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:orientation="vertical">
-            <TextView
-                android:id="@+id/tabLogLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:paddingTop="14dp"
-                android:paddingBottom="12dp"
-                android:text="Log"
-                android:textAllCaps="true"
-
-                android:maxLines="1"
-                android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="9sp"
-                android:autoSizeMaxTextSize="14sp"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp"                android:textSize="14sp"
-                android:textStyle="bold" />
-            <View
-                android:id="@+id/tabLogLine"
-                android:layout_width="match_parent"
-                android:layout_height="3dp"
-                android:background="@color/ic_bg" />
-        </LinearLayout>
-    </LinearLayout>
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium"
+        android:maxLines="1"
+        android:paddingStart="20dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="12dp"
+        android:text="Besøk"
+        android:textColor="@color/m3_on_surface"
+        android:textSize="26sp" />
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -183,36 +34,50 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:padding="16dp">
-            <TextView
-                android:id="@+id/status"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+            <!-- status card -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/lastCheck"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textSize="14sp" />
-            <Button
-                android:id="@+id/btnNow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Check now" />
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Visits:"
-                android:textStyle="bold" />
-
+                android:background="@drawable/card_primary"
+                android:orientation="vertical"
+                android:paddingStart="18dp"
+                android:paddingTop="14dp"
+                android:paddingEnd="18dp"
+                android:paddingBottom="10dp">
+                <TextView
+                    android:id="@+id/status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/m3_on_primary_container"
+                    android:textSize="16sp" />
+                <TextView
+                    android:id="@+id/lastCheck"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:alpha="0.85"
+                    android:textColor="@color/m3_on_primary_container"
+                    android:textSize="13sp" />
+                <Button
+                    android:id="@+id/btnNow"
+                    style="@style/LL.Button.Filled"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:drawableStart="@drawable/ic_btn_refresh"
+                    android:drawablePadding="8dp"
+                    android:drawableTint="@color/m3_on_primary"
+                    android:text="Sjekk nå" />
+            </LinearLayout>
             <ScrollView
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="1">
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingBottom="12dp">
                 <LinearLayout
                     android:id="@+id/visits"
                     android:layout_width="match_parent"
@@ -221,455 +86,526 @@
             </ScrollView>
         </LinearLayout>
 
-        <!-- Tab 2: settings -->
+        <!-- Tab 2: settings, grouped in cards -->
         <ScrollView
             android:id="@+id/pageSettings"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:clipToPadding="false"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
-                <TextView
-                    android:id="@+id/settingsStatus"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="16dp">
+                <LinearLayout
+                    style="@style/LL.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textSize="14sp" />
+                    android:layout_marginTop="4dp"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/LL.Section"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:text="Logging" />
+                    <TextView
+                        android:id="@+id/settingsStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="0dp"
+                        android:textSize="13sp" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                            <Button
+                                android:id="@+id/btnStart"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginEnd="4dp"
+                                android:text="Start logging" />
+                            <Button
+                                android:id="@+id/btnStop"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="4dp"
+                                android:text="Stopp logging" />
+                    </LinearLayout>
+                    <CheckBox
+                        android:id="@+id/chkGpsOff"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="44dp"
+                        android:text="Slå på GPS ved behov før posisjonering" />
+                    <TextView
+                        android:id="@+id/gpsHint"
+                        style="@style/LL.Hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Slår på GPS hvis den er av, og slår den av igjen etterpå bare hvis den var av"
+                        android:layout_marginStart="32dp" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Sjekk hvert (minutter):"
+                            android:textSize="15sp" />
+                            <Button
+                                android:id="@+id/btnMinus"
+                                android:layout_width="48dp"
+                                android:layout_height="wrap_content"
+                                android:text="−" />
+                            <EditText
+                                android:id="@+id/editInterval"
+                                android:layout_width="56dp"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:imeOptions="actionDone"
+                                android:importantForAutofill="no"
+                                android:hint="5"
+                                android:inputType="number"
+                                android:maxLength="4"
+                                android:selectAllOnFocus="true" />
+                            <Button
+                                android:id="@+id/btnPlus"
+                                android:layout_width="48dp"
+                                android:layout_height="wrap_content"
+                                android:text="+" />
+                            <Button
+                                android:id="@+id/btnApplyInterval"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="4dp"
+                                android:text="Bruk" />
+                    </LinearLayout>
+                    <Button
+                        android:id="@+id/btnBackground"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Tillat posisjon «hele tiden»" />
+                    <Button
+                        android:id="@+id/btnBattery"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Slå av batterioptimalisering" />
+                </LinearLayout>
                 <LinearLayout
+                    style="@style/LL.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:orientation="horizontal">
-                    <Button
-                        android:id="@+id/btnStart"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Start logging" />
-                    <Button
-                        android:id="@+id/btnStop"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Stop logging" />
-                </LinearLayout>
-                <CheckBox
-                    android:id="@+id/chkGpsOff"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Turn GPS on when needed before locating" />
-
-                <TextView
-                    android:id="@+id/gpsHint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="32dp"
-                    android:text="Turns GPS on if it's off, and turns it off again afterwards only if it was off"
-                    android:textSize="12sp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
+                    android:orientation="vertical">
                     <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Check every (minutes):"
-                        android:textSize="16sp" />
-                    <Button
-                        android:id="@+id/btnMinus"
-                        android:layout_width="48dp"
-                        android:layout_height="wrap_content"
-                        android:text="−" />
-                    <EditText
-                        android:id="@+id/editInterval"
-                        android:layout_width="64dp"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:imeOptions="actionDone"
-                        android:importantForAutofill="no"
-                        android:hint="5"
-                        android:inputType="number"
-                        android:maxLength="4"
-                        android:selectAllOnFocus="true" />
-                    <Button
-                        android:id="@+id/btnPlus"
-                        android:layout_width="48dp"
-                        android:layout_height="wrap_content"
-                        android:text="+" />
-                    <Button
-                        android:id="@+id/btnApplyInterval"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Apply" />
-                </LinearLayout>
-
-                <Button
-                    android:id="@+id/btnBackground"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Allow location “all the time”" />
-
-                <Button
-                    android:id="@+id/btnBattery"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Turn off battery optimization" />
-
-                <!-- Places (merge addresses), edited inline -->
-                <TextView
                     android:id="@+id/placesTitle"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
-                    android:text="Places (merge addresses)"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="One place per line: Name;address 1;address 2;…\nWhen the looked-up address matches one of the addresses (case and extra spaces are ignored), the name is logged instead.\nExample: Home;Example Street 1, 0000 Town;Other Road 2, 0000 Town"
-                    android:textIsSelectable="true"
-                    android:textSize="13sp" />
-                <TextView
-                    android:id="@+id/placesLastRaw"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textIsSelectable="true"
-                    android:textSize="13sp" />
-                <EditText
-                    android:id="@+id/editPlaces"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:gravity="top|start"
-                    android:hint="Home;Example Street 1, 0000 Town"
-                    android:importantForAutofill="no"
-                    android:inputType="textMultiLine|textNoSuggestions"
-                    android:minLines="4"
-                    android:scrollHorizontally="false"
-                    android:textSize="14sp" />
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-                    <Button
-                        android:id="@+id/btnInsertLast"
-                        android:layout_width="wrap_content"
+                        style="@style/LL.Section"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Insert last address" />
-                    <Button
-                        android:id="@+id/btnSavePlaces"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Save" />
+                        android:layout_marginBottom="6dp"
+                        android:text="Steder (slå sammen adresser)" />
                     <TextView
-                        android:id="@+id/placesSaved"
-                        android:layout_width="0dp"
+                        style="@style/LL.Hint"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginStart="8dp"
-                        android:textSize="13sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/placeThumbs"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-
-                <!-- Street View images on the stop rows -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
-                    android:text="Street View"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-                <TextView
-                    android:id="@+id/streetViewHelp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textIsSelectable="true"
-                    android:textSize="13sp" />
-                <EditText
-                    android:id="@+id/editApiKey"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:hint="Google API key"
-                    android:importantForAutofill="no"
-                    android:inputType="textPassword"
-                    android:singleLine="true"
-                    android:textSize="14sp" />
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-                    <Button
-                        android:id="@+id/btnSaveApiKey"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Save" />
-                    <TextView
-                        android:id="@+id/apiKeyStatus"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginStart="8dp"
-                        android:textSize="13sp" />
-                </LinearLayout>
-
-                <!-- 1.31: Google Maps / Ice Box state and the fallback browser for Street View -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-                    <TextView
-                        android:id="@+id/browserStatus"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:textSize="13sp" />
-                    <Button
-                        android:id="@+id/btnBrowser"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:text="Browser…" />
-                </LinearLayout>
-
-                <!-- Optional: report the wireless-debugging address to a dashboard -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
-                    android:text="Dashboard URL"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Optional. If set, the phone's wireless-debugging address (ip:port, or off) is sent to this URL when it changes and about once an hour. Read-only: nothing is turned on or off. Empty = off."
-                    android:textSize="13sp" />
-                <EditText
-                    android:id="@+id/editDashboardUrl"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:hint="https://…/api/adbport"
-                    android:importantForAutofill="no"
-                    android:inputType="textUri"
-                    android:singleLine="true"
-                    android:textSize="14sp" />
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-                    <Button
-                        android:id="@+id/btnSaveDashboardUrl"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Save" />
-                    <TextView
-                        android:id="@+id/dashboardStatus"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginStart="8dp"
+                        android:text="Ett sted per linje: Navn;adresse 1;adresse 2;…\nNår den oppslåtte adressen er lik en av adressene (store/små bokstaver og ekstra mellomrom ignoreres), logges navnet i stedet.\nEksempel: Hjem;Eksempelveien 1, 0000 Sted;Annen vei 2, 0000 Sted"
                         android:textIsSelectable="true"
                         android:textSize="13sp" />
-                </LinearLayout>
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Dashbord-IP (reserve)"
-                    android:textStyle="bold" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Used when the dashboard's host name cannot be resolved (DNS). HTTPS is still verified for the host name. Optional: the IP the host last resolved to is learned automatically."
-                    android:textColor="#757575"
-                    android:textSize="12sp" />
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-                    <EditText
-                        android:id="@+id/editDashboardIp"
-                        android:layout_width="0dp"
+                    <TextView
+                        android:id="@+id/placesLastRaw"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:hint="IP address (empty = only learned IP)"
+                        android:layout_marginTop="8dp"
+                        android:textIsSelectable="true"
+                        android:textSize="13sp" />
+                    <EditText
+                        android:id="@+id/editPlaces"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:hint="Hjem;Eksempelveien 1, 0000 Sted"
+                        android:importantForAutofill="no"
+                        android:gravity="top|start"
+                        android:inputType="textMultiLine|textNoSuggestions"
+                        android:minLines="4"
+                        android:scrollHorizontally="false"
+                        android:textSize="14sp" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                            <Button
+                                android:id="@+id/btnInsertLast"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Sett inn siste adresse" />
+                            <Button
+                                android:id="@+id/btnSavePlaces"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:text="Lagre" />
+                            <TextView
+                                android:id="@+id/placesSaved"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="8dp"
+                                android:textSize="13sp" />
+                    </LinearLayout>
+                    <LinearLayout
+                        android:id="@+id/placeThumbs"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+                <LinearLayout
+                    style="@style/LL.Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/LL.Section"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:text="Street View" />
+                    <TextView
+                        android:id="@+id/streetViewHelp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="0dp"
+                        android:textIsSelectable="true"
+                        android:textSize="13sp" />
+                    <EditText
+                        android:id="@+id/editApiKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:hint="Google API-nøkkel"
+                        android:importantForAutofill="no"
+                        android:inputType="textPassword"
+                        android:singleLine="true"
+                        android:textSize="14sp" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                            <Button
+                                android:id="@+id/btnSaveApiKey"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Lagre" />
+                            <TextView
+                                android:id="@+id/apiKeyStatus"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="8dp"
+                                android:textSize="13sp" />
+                    </LinearLayout>
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                        <TextView
+                            android:id="@+id/browserStatus"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="13sp" />
+                            <Button
+                                android:id="@+id/btnBrowser"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:text="Nettleser…" />
+                    </LinearLayout>
+                </LinearLayout>
+                <LinearLayout
+                    style="@style/LL.Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/LL.Section"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:text="Dashbord-URL" />
+                    <TextView
+                        style="@style/LL.Hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Valgfritt. Hvis satt, sendes telefonens adresse for trådløs feilsøking (ip:port, eller av) til denne URL-en når den endres og omtrent én gang i timen. Bare lesing: ingenting slås på eller av. Tom = av." />
+                    <EditText
+                        android:id="@+id/editDashboardUrl"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:hint="https://…/api/adbport"
                         android:importantForAutofill="no"
                         android:inputType="textUri"
                         android:singleLine="true"
                         android:textSize="14sp" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                            <Button
+                                android:id="@+id/btnSaveDashboardUrl"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Lagre" />
+                            <TextView
+                                android:id="@+id/dashboardStatus"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="8dp"
+                                android:textIsSelectable="true"
+                                android:textSize="13sp" />
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="Dashbord-IP (reserve)" />
+                    <TextView
+                        style="@style/LL.Hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Brukes når dashbordets vertsnavn ikke kan slås opp (DNS). HTTPS verifiseres fortsatt mot vertsnavnet. Valgfritt: IP-en verten sist ble slått opp til, læres automatisk." />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                        <EditText
+                            android:id="@+id/editDashboardIp"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="IP-adresse (tom = bare lært IP)"
+                            android:importantForAutofill="no"
+                            android:inputType="textUri"
+                            android:singleLine="true"
+                            android:textSize="14sp" />
+                            <Button
+                                android:id="@+id/btnSaveDashboardIp"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:text="Lagre" />
+                    </LinearLayout>
+                    <TextView
+                        android:id="@+id/dashboardIpStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="0dp"
+                        android:textIsSelectable="true"
+                        android:textSize="13sp" />
+                    <CheckBox
+                        android:id="@+id/checkKeepAdbWifi"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="44dp"
+                        android:text="Hold trådløs feilsøking på (på Wi-Fi)" />
+                    <TextView
+                        android:id="@+id/keepAdbWifiStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="0dp"
+                        android:textIsSelectable="true"
+                        android:textSize="13sp" />
+                    <CheckBox
+                        android:id="@+id/checkKeepTailscale"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="44dp"
+                        android:text="Hold Tailscale på (be den koble til når den er av; varsle hvis den forblir av)" />
+                </LinearLayout>
+                <LinearLayout
+                    style="@style/LL.Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/LL.Section"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:text="Samtaler og SMS" />
+                    <TextView
+                        android:id="@+id/commPermStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="0dp"
+                        android:textIsSelectable="true"
+                        android:textSize="13sp" />
                     <Button
-                        android:id="@+id/btnSaveDashboardIp"
+                        android:id="@+id/btnCommPermsSettings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Gi tilgang til samtaler, SMS og kontakter" />
+                    <Button
+                        android:id="@+id/btnAppInfo"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Åpne appinfo (begrensede innstillinger)" />
+                    <TextView
+                        style="@style/LL.Hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Står det «Begrenset innstilling» / «Restricted setting» når du gir tilgang til SMS eller samtalelogg? Android begrenser det for apper som ikke er fra Play-butikken. Åpne appinfo, trykk ⋮ øverst til høyre og velg «Tillat begrensede innstillinger», og prøv igjen." />
+                    <CheckBox
+                        android:id="@+id/checkCommPopup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="44dp"
+                        android:text="Popup ved innkommende samtale/SMS/MMS (navn eller oppslag)" />
+                    <CheckBox
+                        android:id="@+id/checkCommTts"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="44dp"
+                        android:text="Les opp innringer/SMS/MMS (norsk tale)" />
+                    <CheckBox
+                        android:id="@+id/checkCommTtsText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="24dp"
+                        android:minHeight="44dp"
+                        android:text="Les også opp SMS- og MMS-teksten (ellers bare avsender)" />
+                    <Button
+                        android:id="@+id/btnTtsTest"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Save" />
+                        style="?android:attr/buttonStyleSmall"
+                        android:layout_marginStart="32dp"
+                        android:text="Test opplesing" />
                 </LinearLayout>
-                <TextView
-                    android:id="@+id/dashboardIpStatus"
+                <LinearLayout
+                    style="@style/LL.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textIsSelectable="true"
-                    android:textSize="13sp" />
-                <CheckBox
-                    android:id="@+id/checkKeepAdbWifi"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/LL.Section"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:text="Nummeroppslag" />
+                    <CheckBox
+                        android:id="@+id/checkLookup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="44dp"
+                        android:text="Slå opp ukjente nummer (1881.no, gulesider.no)" />
+                    <CheckBox
+                        android:id="@+id/checkSrc1881"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="24dp"
+                        android:minHeight="44dp"
+                        android:text="1881.no" />
+                    <CheckBox
+                        android:id="@+id/checkSrcGsPersons"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="24dp"
+                        android:minHeight="44dp"
+                        android:text="gulesider.no – personer (nettleser i appen)" />
+                    <CheckBox
+                        android:id="@+id/checkSrcGsCompanies"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="24dp"
+                        android:minHeight="44dp"
+                        android:text="gulesider.no – bedrifter (nettleser i appen)" />
+                    <TextView
+                        style="@style/LL.Hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Rekkefølge: 1881, gulesider personer, gulesider bedrifter. Bare nummeret sendes (norske 8-sifrede nummer som ikke er i kontakter). Gulesider leses i en usynlig nettleser i appen, så sikkerhetssjekken deres går som i Chrome; stopper den, bruk «🌐 Nettvisning» på en rad i Samtaler. Svar lagres på telefonen. Maks 40 oppslag i timen."
+                        android:layout_marginStart="32dp" />
+                    <CheckBox
+                        android:id="@+id/checkLookupContact"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="44dp"
+                        android:text="Legg automatisk til oppslag i kontakter" />
+                    <Button
+                        android:id="@+id/btnContactStore"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        style="?android:attr/buttonStyleSmall"
+                        android:layout_marginStart="32dp"
+                        android:text="Kontaktlager: …" />
+                    <TextView
+                        android:id="@+id/lookupStatus"
+                        style="@style/LL.Hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="32dp" />
+                </LinearLayout>
+                <LinearLayout
+                    style="@style/LL.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Keep wireless debugging on (when on Wi-Fi)" />
-                <TextView
-                    android:id="@+id/keepAdbWifiStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textIsSelectable="true"
-                    android:textSize="13sp" />
-                <CheckBox
-                    android:id="@+id/checkKeepTailscale"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Keep Tailscale on (ask it to connect when it is off; notify if it stays off)" />
-
-                <!-- 1.32: calls and SMS -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
-                    android:text="Samtaler og SMS"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-                <TextView
-                    android:id="@+id/commPermStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textIsSelectable="true"
-                    android:textSize="13sp" />
-                <Button
-                    android:id="@+id/btnCommPermsSettings"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Gi tilgang til samtaler, SMS og kontakter" />
-                <Button
-                    android:id="@+id/btnAppInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Åpne appinfo (begrensede innstillinger)" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Står det «Begrenset innstilling» / «Restricted setting» når du gir tilgang til SMS eller samtalelogg? Android begrenser det for apper som ikke er fra Play-butikken. Åpne appinfo, trykk ⋮ øverst til høyre og velg «Tillat begrensede innstillinger», og prøv igjen."
-                    android:textColor="#757575"
-                    android:textSize="12sp" />
-                <CheckBox
-                    android:id="@+id/checkCommPopup"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Popup ved innkommende samtale/SMS/MMS (navn eller oppslag)" />
-                <CheckBox
-                    android:id="@+id/checkCommTts"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Les opp innringer/SMS/MMS (norsk tale)" />
-                <CheckBox
-                    android:id="@+id/checkCommTtsText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="32dp"
-                    android:text="Les også opp SMS- og MMS-teksten (ellers bare avsender)" />
-                <Button
-                    android:id="@+id/btnTtsTest"
-                    style="?android:attr/buttonStyleSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="32dp"
-                    android:text="Test opplesing" />
-                <CheckBox
-                    android:id="@+id/checkLookup"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Slå opp ukjente nummer (1881.no, gulesider.no)" />
-                <CheckBox
-                    android:id="@+id/checkSrc1881"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="32dp"
-                    android:text="1881.no" />
-                <CheckBox
-                    android:id="@+id/checkSrcGsPersons"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="32dp"
-                    android:text="gulesider.no – personer (nettleser i appen)" />
-                <CheckBox
-                    android:id="@+id/checkSrcGsCompanies"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="32dp"
-                    android:text="gulesider.no – bedrifter (nettleser i appen)" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="32dp"
-                    android:text="Rekkefølge: 1881, gulesider personer, gulesider bedrifter. Bare nummeret sendes (norske 8-sifrede nummer som ikke er i kontakter). Gulesider leses i en usynlig nettleser i appen, så sikkerhetssjekken deres går som i Chrome; stopper den, bruk «🌐 Nettvisning» på en rad i Samtaler. Svar lagres på telefonen. Maks 40 oppslag i timen."
-                    android:textColor="#757575"
-                    android:textSize="12sp" />
-                <CheckBox
-                    android:id="@+id/checkLookupContact"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Legg automatisk til oppslag i kontakter" />
-                <Button
-                    android:id="@+id/btnContactStore"
-                    style="?android:attr/buttonStyleSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="32dp"
-                    android:textAllCaps="false"
-                    android:text="Kontaktlager: …" />
-                <TextView
-                    android:id="@+id/lookupStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="32dp"
-                    android:textSize="12sp" />
-                <CheckBox
-                    android:id="@+id/checkRecExperimental"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Eksperimentelt samtaleopptak i appen – tar trolig bare opp din egen stemme" />
-                <TextView
-                    android:id="@+id/recHelp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textColor="#757575"
-                    android:textSize="12sp" />
-
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical">
+                    <TextView
+                        style="@style/LL.Section"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:text="Samtaleopptak" />
+                    <CheckBox
+                        android:id="@+id/checkRecExperimental"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="44dp"
+                        android:text="Eksperimentelt samtaleopptak i appen – tar trolig bare opp din egen stemme" />
+                    <TextView
+                        android:id="@+id/recHelp"
+                        style="@style/LL.Hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
             </LinearLayout>
         </ScrollView>
 
@@ -679,9 +615,8 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"
@@ -694,7 +629,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:textAllCaps="false"
+                    android:layout_marginEnd="6dp"
                     android:text="Alle" />
                 <Button
                     android:id="@+id/chipCalls"
@@ -702,7 +637,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:textAllCaps="false"
+                    android:layout_marginEnd="6dp"
                     android:text="Samtaler" />
                 <Button
                     android:id="@+id/chipMsgs"
@@ -710,23 +645,26 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:textAllCaps="false"
+                    android:layout_marginEnd="6dp"
                     android:text="SMS/MMS" />
-                <Button
+                <ImageButton
                     android:id="@+id/btnCommRefresh"
-                    style="?android:attr/buttonStyleSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="⟳" />
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Oppdater"
+                    android:src="@drawable/ic_btn_refresh_24"
+                    android:tint="@color/m3_on_surface_variant"
+                    android:tooltipText="Oppdater" />
             </LinearLayout>
             <TextView
                 android:id="@+id/commInfo"
+                style="@style/LL.Hint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
-                android:textColor="#757575"
-                android:textSize="12sp" />
+                android:paddingStart="4dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="6dp" />
             <Button
                 android:id="@+id/btnCommPerms"
                 android:layout_width="match_parent"
@@ -741,8 +679,11 @@
                     android:id="@+id/commList"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:divider="#E0E0E0"
-                    android:dividerHeight="1dp"
+                    android:clipToPadding="false"
+                    android:divider="@android:color/transparent"
+                    android:dividerHeight="6dp"
+                    android:listSelector="@android:color/transparent"
+                    android:paddingBottom="12dp"
                     android:scrollbars="none" />
                 <!-- slim 20 dp drag handle instead of the 48 dp fast-scroll touch zone (1.40) -->
                 <no.grokbot.stedslogger.SlimScrollHandle
@@ -767,30 +708,36 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
             android:visibility="gone">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="@drawable/field_bg"
                 android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:paddingStart="4dp">
                 <Spinner
                     android:id="@+id/logFilter"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1" />
-                <Button
+                    android:layout_weight="1"
+                    android:minHeight="44dp" />
+                <ImageButton
                     android:id="@+id/btnLogRefresh"
-                    style="?android:attr/buttonStyleSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Oppdater" />
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Oppdater"
+                    android:src="@drawable/ic_btn_refresh_24"
+                    android:tint="@color/m3_on_surface_variant"
+                    android:tooltipText="Oppdater" />
             </LinearLayout>
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
                 android:orientation="horizontal">
                 <Button
                     android:id="@+id/btnLogCopy"
@@ -798,6 +745,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
                     android:text="Kopier" />
                 <Button
                     android:id="@+id/btnLogShare"
@@ -805,6 +753,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
                     android:text="Del" />
                 <Button
                     android:id="@+id/btnLogClear"
@@ -816,20 +765,261 @@
             </LinearLayout>
             <TextView
                 android:id="@+id/logCount"
+                style="@style/LL.Hint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
-                android:textColor="#757575"
-                android:textSize="12sp" />
+                android:paddingStart="4dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="6dp" />
             <ListView
                 android:id="@+id/logList"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:divider="#E0E0E0"
-                android:dividerHeight="1dp"
-                android:fastScrollEnabled="true" />
+                android:clipToPadding="false"
+                android:divider="@android:color/transparent"
+                android:dividerHeight="6dp"
+                android:fastScrollEnabled="true"
+                android:listSelector="@android:color/transparent"
+                android:paddingBottom="12dp" />
         </LinearLayout>
     </FrameLayout>
+
+    <!-- bottom navigation bar (Material 3) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:background="@color/m3_surface_container"
+        android:orientation="horizontal">
+        <LinearLayout
+            android:id="@+id/tabVisits"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Besøk"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="12dp">
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="32dp">
+                <!-- active indicator pill (Material 3 navigation bar) -->
+                <View
+                    android:id="@+id/tabVisitsLine"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/nav_indicator"
+                    android:visibility="invisible" />
+                <ImageView
+                    android:id="@+id/tabVisitsIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_nav_place" />
+            </FrameLayout>
+            <TextView
+                android:id="@+id/tabVisitsLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="9sp"
+                android:autoSizeMaxTextSize="12sp"
+                android:fontFamily="sans-serif-medium"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:text="Besøk"
+                android:textSize="12sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tabComms"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Samtaler"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="12dp">
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="32dp">
+                <!-- active indicator pill (Material 3 navigation bar) -->
+                <View
+                    android:id="@+id/tabCommsLine"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/nav_indicator"
+                    android:visibility="invisible" />
+                <ImageView
+                    android:id="@+id/tabCommsIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_nav_call" />
+            </FrameLayout>
+            <TextView
+                android:id="@+id/tabCommsLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="9sp"
+                android:autoSizeMaxTextSize="12sp"
+                android:fontFamily="sans-serif-medium"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:text="Samtaler"
+                android:textSize="12sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tabWeb"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Oppslag"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="12dp">
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="32dp">
+                <!-- active indicator pill (Material 3 navigation bar) -->
+                <View
+                    android:id="@+id/tabWebLine"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/nav_indicator"
+                    android:visibility="invisible" />
+                <ImageView
+                    android:id="@+id/tabWebIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_row_search" />
+            </FrameLayout>
+            <TextView
+                android:id="@+id/tabWebLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="9sp"
+                android:autoSizeMaxTextSize="12sp"
+                android:fontFamily="sans-serif-medium"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:text="Oppslag"
+                android:textSize="12sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tabSettings"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Innstillinger"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="12dp">
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="32dp">
+                <!-- active indicator pill (Material 3 navigation bar) -->
+                <View
+                    android:id="@+id/tabSettingsLine"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/nav_indicator"
+                    android:visibility="invisible" />
+                <ImageView
+                    android:id="@+id/tabSettingsIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_nav_settings" />
+            </FrameLayout>
+            <TextView
+                android:id="@+id/tabSettingsLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="9sp"
+                android:autoSizeMaxTextSize="12sp"
+                android:fontFamily="sans-serif-medium"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:text="Innstillinger"
+                android:textSize="12sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tabLog"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Logg"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="12dp">
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="32dp">
+                <!-- active indicator pill (Material 3 navigation bar) -->
+                <View
+                    android:id="@+id/tabLogLine"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/nav_indicator"
+                    android:visibility="invisible" />
+                <ImageView
+                    android:id="@+id/tabLogIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_nav_list" />
+            </FrameLayout>
+            <TextView
+                android:id="@+id/tabLogLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="9sp"
+                android:autoSizeMaxTextSize="12sp"
+                android:fontFamily="sans-serif-medium"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:text="Logg"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
 </LinearLayout>

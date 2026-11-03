@@ -118,7 +118,7 @@ class MainActivity : Activity() {
             manualStart = System.currentTimeMillis()
             manualError = try {
                 LocationService.start(this, LocationService.ACTION_CHECK_NOW); null
-            } catch (e: Exception) { "could not start the check: ${e.message}" }
+            } catch (e: Exception) { "kunne ikke starte sjekken: ${e.message}" }
             refresh()
         }
         btnBackground.setOnClickListener { askBackgroundLocation() }
@@ -194,7 +194,7 @@ class MainActivity : Activity() {
         manualError?.let { err ->
             if (now - manualStart < MANUAL_RESULT_MS) {
                 uiHandler.postDelayed(manualExpire, manualStart + MANUAL_RESULT_MS - now)
-                return "Check now: $err"
+                return "Sjekk nå: $err"
             }
             manualStart = 0L; manualError = null; return null
         }
@@ -203,17 +203,17 @@ class MainActivity : Activity() {
             if (now - doneAt < MANUAL_RESULT_MS) {
                 uiHandler.postDelayed(manualExpire, doneAt + MANUAL_RESULT_MS - now)
                 val res = p.getString(LogStore.KEY_LAST_CHECK, null) ?: "done"
-                return "Check now – $res"
+                return "Sjekk nå – $res"
             }
             manualStart = 0L; return null
         }
         if (now - manualStart < MANUAL_TIMEOUT_MS) {
             uiHandler.postDelayed(manualExpire, manualStart + MANUAL_TIMEOUT_MS - now)
-            return "Checking now …"
+            return "Sjekker nå …"
         }
         if (now - manualStart < MANUAL_TIMEOUT_MS + MANUAL_RESULT_MS) {
             uiHandler.postDelayed(manualExpire, manualStart + MANUAL_TIMEOUT_MS + MANUAL_RESULT_MS - now)
-            return "Check now: no result after ${MANUAL_TIMEOUT_MS / 60_000} min"
+            return "Sjekk nå: ikke noe resultat etter ${MANUAL_TIMEOUT_MS / 60_000} min"
         }
         manualStart = 0L; return null
     }
@@ -238,13 +238,19 @@ class MainActivity : Activity() {
         val pages = listOf(R.id.pageVisits, R.id.pageSettings, R.id.pageLog, R.id.pageComms, R.id.pageWeb)
         val labels = listOf(R.id.tabVisitsLabel, R.id.tabSettingsLabel, R.id.tabLogLabel, R.id.tabCommsLabel, R.id.tabWebLabel)
         val lines = listOf(R.id.tabVisitsLine, R.id.tabSettingsLine, R.id.tabLogLine, R.id.tabCommsLine, R.id.tabWebLine)
-        val on = 0xFF1565C0.toInt()
-        val off = 0xFF757575.toInt()
+        val icons = listOf(R.id.tabVisitsIcon, R.id.tabSettingsIcon, R.id.tabLogIcon, R.id.tabCommsIcon, R.id.tabWebIcon)
+        // 1.49: Material 3 navigation bar – the active tab gets the indicator pill and the stronger colours
+        val on = Ui.onSurface(this)
+        val off = Ui.variant(this)
+        val iconOn = Ui.c(this, R.color.m3_on_secondary_container)
         for (i in 0..4) {
             findViewById<android.view.View>(pages[i]).visibility = if (tab == i) android.view.View.VISIBLE else android.view.View.GONE
             findViewById<TextView>(labels[i]).setTextColor(if (tab == i) on else off)
             findViewById<android.view.View>(lines[i]).visibility = if (tab == i) android.view.View.VISIBLE else android.view.View.INVISIBLE
+            findViewById<android.widget.ImageView>(icons[i]).imageTintList =
+                android.content.res.ColorStateList.valueOf(if (tab == i) iconOn else off)
         }
+        findViewById<TextView>(R.id.topTitle).text = findViewById<TextView>(labels[tab]).text
         if (tab == 2) logTab.load()
         if (tab == TAB_COMMS) commsTab.load()
         if (tab == TAB_WEB) lookupTab.show() else lookupTab.hide()
@@ -275,14 +281,14 @@ class MainActivity : Activity() {
     private fun setInterval(value: Int) {
         val v = value.coerceIn(LogStore.MIN_INTERVAL_MIN, LogStore.MAX_INTERVAL_MIN)
         if (v != value) {
-            Toast.makeText(this, "Must be between ${LogStore.MIN_INTERVAL_MIN} and ${LogStore.MAX_INTERVAL_MIN} minutes", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Må være mellom ${LogStore.MIN_INTERVAL_MIN} og ${LogStore.MAX_INTERVAL_MIN} minutter", Toast.LENGTH_SHORT).show()
         }
         editInterval.setText(v.toString())
         editInterval.setSelection(editInterval.text.length)
         val old = LogStore.intervalMin(this)
         if (v != old) {
             LogStore.prefs(this).edit().putInt(LogStore.KEY_INTERVAL_MIN, v).apply()
-            Toast.makeText(this, "Now checking every $v min", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Sjekker nå hvert $v min", Toast.LENGTH_SHORT).show()
         }
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editInterval.windowToken, 0)
     }
@@ -313,31 +319,31 @@ class MainActivity : Activity() {
     }
 
     private fun setupStreetView() {
-        val sha1 = StreetView.certSha1Display(this) ?: "(could not read)"
+        val sha1 = StreetView.certSha1Display(this) ?: "(kunne ikke leses)"
         findViewById<TextView>(R.id.streetViewHelp).text =
-            "Shows a Street View image on each stop with coordinates; tap it to open Street View there in the Google Maps app " +
-            "(defrosted with Ice Box first if it is frozen; a browser is used if Maps cannot be opened). " +
-            "Needs your own Google API key (stored only on this phone):\n" +
-            "1. Google Cloud Console → create a project (billing required)\n" +
-            "2. Enable \"Street View Static API\"\n" +
+            "Viser et Street View-bilde på hver stans med koordinater; trykk på det for å åpne Street View der i Google Maps " +
+            "(tines først med Ice Box hvis Maps er fryst; en nettleser brukes hvis Maps ikke kan åpnes). " +
+            "Trenger din egen Google API-nøkkel (lagres bare på denne telefonen):\n" +
+            "1. Google Cloud Console → opprett et prosjekt (krever fakturering)\n" +
+            "2. Aktiver «Street View Static API»\n" +
             "3. Credentials → Create API key\n" +
-            "4. Restrict it to Android apps: package $packageName, SHA-1 $sha1\n" +
-            "5. Restrict the API to Street View Static API"
+            "4. Begrens den til Android-apper: pakke $packageName, SHA-1 $sha1\n" +
+            "5. Begrens API-et til Street View Static API"
         showBrowserStatus()
         findViewById<Button>(R.id.btnBrowser).setOnClickListener {
             BrowserOpener.pick(this, auto = true) { showBrowserStatus() }
         }
         val edit = findViewById<EditText>(R.id.editApiKey)
         val keyStatus = findViewById<TextView>(R.id.apiKeyStatus)
-        fun show() { keyStatus.text = if (StreetView.apiKey(this) != null) "Key saved" else "No key" }
+        fun show() { keyStatus.text = if (StreetView.apiKey(this) != null) "Nøkkel lagret" else "Ingen nøkkel" }
         show()
         findViewById<Button>(R.id.btnSaveApiKey).setOnClickListener {
             val k = edit.text.toString()
             if (k.isBlank() && StreetView.apiKey(this) != null) {
                 AlertDialog.Builder(this)
-                    .setMessage("Remove the saved API key?")
-                    .setPositiveButton("Remove") { _, _ -> StreetView.saveKey(this, ""); show(); refresh() }
-                    .setNegativeButton("Cancel", null)
+                    .setMessage("Fjerne den lagrede API-nøkkelen?")
+                    .setPositiveButton("Fjern") { _, _ -> StreetView.saveKey(this, ""); show(); refresh() }
+                    .setNegativeButton("Avbryt", null)
                     .show()
                 return@setOnClickListener
             }
@@ -369,7 +375,7 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.btnSaveDashboardIp).setOnClickListener {
             val ip = ipEdit.text.toString().trim()
             if (ip.isNotEmpty() && !AdbReporter.isIpLiteral(ip)) {
-                Toast.makeText(this, "Enter an IP address (not a host name)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Skriv inn en IP-adresse (ikke et vertsnavn)", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             AdbReporter.saveFallbackIp(this, ip)
@@ -397,7 +403,7 @@ class MainActivity : Activity() {
             (if (AdbReporter.fallbackIp(this).isEmpty()) "Fallback IP: not set" else "Fallback IP: ${AdbReporter.fallbackIp(this)}") +
                 "\nLearned IP: " + (learned ?: "none yet (learned after the next successful report)")
         }
-        findViewById<TextView>(R.id.dashboardStatus).text = "Saved – reporting…"
+        findViewById<TextView>(R.id.dashboardStatus).text = "Lagret – rapporterer …"
                 AdbReporter.maybeReport(this, force = true)
                 edit.postDelayed({ refresh() }, 9000)
             } else refresh()
@@ -421,8 +427,8 @@ class MainActivity : Activity() {
                 dp(96), dp(96)
             ).apply { marginStart = dp(8) }
             scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
-            setBackgroundColor(0xFFE0E0E0.toInt())
-            val r = dp(8).toFloat()
+            setBackgroundColor(Ui.placeholder(this@MainActivity))
+            val r = dp(12).toFloat()
             outlineProvider = object : android.view.ViewOutlineProvider() {
                 override fun getOutline(view: android.view.View, outline: android.graphics.Outline) =
                     outline.setRoundRect(0, 0, view.width, view.height, r)
@@ -456,10 +462,10 @@ class MainActivity : Activity() {
         }
         val isPlace = slot.id.startsWith("p_")
         AlertDialog.Builder(this)
-            .setTitle(if (isPlace) "Image for ${slot.label}" else "Image for this spot")
+            .setTitle(if (isPlace) "Bilde for ${slot.label}" else "Bilde for dette stedet")
             // 1.47: "Kopier" first when opened from a stop (long-press already opened this menu)
             .setItems((if (copy != null) arrayOf("Kopier") else emptyArray<String>()) +
-                arrayOf("Choose photo…", "Other Street View angle", "Use Street View from this stop", "Remove image")) { _, w ->
+                arrayOf("Velg bilde …", "Annen Street View-vinkel", "Bruk Street View fra denne stansen", "Fjern bildet")) { _, w ->
                 if (copy != null && w == 0) { visits.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); copy(); return@setItems }
                 val which = if (copy != null) w - 1 else w
                 when (which) {
@@ -468,7 +474,7 @@ class MainActivity : Activity() {
                         try {
                             startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("image/*")
                                 .addCategory(Intent.CATEGORY_OPENABLE), REQ_PICK_IMAGE)
-                        } catch (e: Exception) { Toast.makeText(this, "No app to pick a photo", Toast.LENGTH_SHORT).show() }
+                        } catch (e: Exception) { Toast.makeText(this, "Ingen app for å velge bilde", Toast.LENGTH_SHORT).show() }
                     }
                     1 -> StreetView.nextAngle(this, slot, lat, lon, done)
                     2 -> StreetView.fromStop(this, slot, lat, lon, done)
@@ -519,13 +525,13 @@ class MainActivity : Activity() {
 
     private fun placesDirty() = editPlaces.text.toString().trimEnd() != Places.text(this)
 
-    private fun placesCountText(n: Int) = "$n ${if (n == 1) "place" else "places"}"
+    private fun placesCountText(n: Int) = "$n ${if (n == 1) "sted" else "steder"}"
 
     /** The feedback next to Save: "Saved (N places)" after saving, "Not saved" while edited. */
     private fun updatePlacesState() {
         placesSaved.text = when {
-            placesDirty() -> "Not saved"
-            placesJustSaved -> "Saved (${placesCountText(Places.count(Places.text(this)))})"
+            placesDirty() -> "Ikke lagret"
+            placesJustSaved -> "Lagret (${placesCountText(Places.count(Places.text(this)))})"
             else -> ""
         }
     }
@@ -542,13 +548,13 @@ class MainActivity : Activity() {
     private fun confirmLeavePlaces(leave: () -> Unit): Boolean {
         if (!placesDirty()) return true
         AlertDialog.Builder(this)
-            .setTitle("Unsaved places")
-            .setMessage("The place list has changes that are not saved.")
-            .setPositiveButton("Save") { _, _ -> savePlaces(); leave() }
-            .setNegativeButton("Discard") { _, _ ->
+            .setTitle("Ulagrede steder")
+            .setMessage("Stedslisten har endringer som ikke er lagret.")
+            .setPositiveButton("Lagre") { _, _ -> savePlaces(); leave() }
+            .setNegativeButton("Forkast") { _, _ ->
                 editPlaces.setText(Places.text(this)); placesJustSaved = false; updatePlacesState(); leave()
             }
-            .setNeutralButton("Keep editing", null)
+            .setNeutralButton("Fortsett å redigere", null)
             .show()
         return false
     }
@@ -589,36 +595,36 @@ class MainActivity : Activity() {
             LocationService.start(this)
             LogStore.prefs(this).edit().putBoolean(LogStore.KEY_RUNNING, true).apply()
         } catch (e: Exception) {
-            Toast.makeText(this, "Could not start: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Kunne ikke starte: ${e.message}", Toast.LENGTH_LONG).show()
         }
         refresh()
     }
 
     private fun askBackgroundLocation() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || hasBackgroundLocation()) {
-            Toast.makeText(this, "Location is already allowed all the time", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Posisjon er allerede tillatt hele tiden", Toast.LENGTH_SHORT).show()
             return
         }
         if (!hasForegroundLocation()) { onStartClicked(); return }
         val label = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
-            packageManager.backgroundPermissionOptionLabel.toString() else "Allow all the time"
+            packageManager.backgroundPermissionOptionLabel.toString() else "Tillat hele tiden"
         AlertDialog.Builder(this)
-            .setTitle("Background location")
+            .setTitle("Posisjon i bakgrunnen")
             .setMessage(
-                "For LocationLogger to check your address at the chosen interval even when the screen is off, " +
-                    "choose \"$label\" on the next screen."
+                "For at LocationLogger skal kunne sjekke adressen med valgt intervall også når skjermen er av, " +
+                    "velg «$label» på neste skjerm."
             )
-            .setPositiveButton("Continue") { _, _ ->
+            .setPositiveButton("Fortsett") { _, _ ->
                 requestPermissions(arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION), REQ_BACKGROUND)
             }
-            .setNegativeButton("Not now", null)
+            .setNegativeButton("Ikke nå", null)
             .show()
     }
 
     @SuppressLint("BatteryLife")
     private fun askIgnoreBatteryOptimizations() {
         if (isIgnoringBattery()) {
-            Toast.makeText(this, "Battery optimization is already turned off", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Batterioptimalisering er allerede slått av", Toast.LENGTH_SHORT).show()
             return
         }
         try {
@@ -645,21 +651,21 @@ class MainActivity : Activity() {
                     if (!hasBackgroundLocation()) askBackgroundLocation()
                 } else {
                     AlertDialog.Builder(this)
-                        .setTitle("Location needed")
-                        .setMessage("LocationLogger needs location access to find your address. You can grant access in Settings.")
-                        .setPositiveButton("Open settings") { _, _ -> openAppSettings() }
-                        .setNegativeButton("Cancel", null)
+                        .setTitle("Posisjon trengs")
+                        .setMessage("LocationLogger trenger posisjonstilgang for å finne adressen. Du kan gi tilgang i Innstillinger.")
+                        .setPositiveButton("Åpne innstillinger") { _, _ -> openAppSettings() }
+                        .setNegativeButton("Avbryt", null)
                         .show()
                 }
             }
             REQ_BACKGROUND -> {
                 if (!hasBackgroundLocation()) {
                     AlertDialog.Builder(this)
-                        .setTitle("Not allowed all the time")
-                        .setMessage("Without \"Allow all the time\", Android may stop logging in the background and after a reboot. " +
-                            "Open Settings › Permissions › Location and choose \"Allow all the time\".")
-                        .setPositiveButton("Open settings") { _, _ -> openAppSettings() }
-                        .setNegativeButton("Not now", null)
+                        .setTitle("Ikke tillatt hele tiden")
+                        .setMessage("Uten «Tillat hele tiden» kan Android stoppe loggingen i bakgrunnen og etter omstart. " +
+                            "Åpne Innstillinger › Tillatelser › Posisjon og velg «Tillat hele tiden».")
+                        .setPositiveButton("Åpne innstillinger") { _, _ -> openAppSettings() }
+                        .setNegativeButton("Ikke nå", null)
                         .show()
                 }
                 if (LogStore.prefs(this).getBoolean(LogStore.KEY_RUNNING, false)) startLogging()
@@ -827,51 +833,51 @@ class MainActivity : Activity() {
         val p = LogStore.prefs(this)
         val running = p.getBoolean(LogStore.KEY_RUNNING, false)
         val perm = when {
-            !hasForegroundLocation() -> "Location: not allowed"
-            !hasBackgroundLocation() -> "Location: only while the app is in use"
-            else -> "Location: allowed all the time"
+            !hasForegroundLocation() -> "Posisjon: ikke tillatt"
+            !hasBackgroundLocation() -> "Posisjon: bare mens appen er i bruk"
+            else -> "Posisjon: tillatt hele tiden"
         }
         val interval = LogStore.intervalMin(this)
         val gps = when {
-            !LogStore.gpsOffBetween(this) -> "GPS: not controlled by the app (must be turned on)"
+            !LogStore.gpsOffBetween(this) -> "GPS: styres ikke av appen (må være på)"
             !GpsToggle.hasPermission(this) ->
-                "GPS: Missing permission to control GPS (grant WRITE_SECURE_SETTINGS via adb) – only requesting location"
-            else -> "GPS: turned on when needed, and restored after each check"
+                "GPS: mangler tillatelse til å styre GPS (gi WRITE_SECURE_SETTINGS via adb) – ber bare om posisjon"
+            else -> "GPS: slås på ved behov og tilbakestilles etter hver sjekk"
         }
-        status.text = if (running) "● Running – checking every $interval min" else "○ Stopped – interval $interval min"
+        status.text = if (running) "● Logger – sjekker hvert $interval min" else "○ Stoppet – intervall $interval min"
         val warnings = listOfNotNull(
-            if (!hasForegroundLocation()) "location not allowed" else null,
-            if (LogStore.gpsOffBetween(this) && !GpsToggle.hasPermission(this)) "missing permission to control GPS" else null,
-            if (!isIgnoringBattery()) "battery optimization on" else null,
+            if (!hasForegroundLocation()) "posisjon ikke tillatt" else null,
+            if (LogStore.gpsOffBetween(this) && !GpsToggle.hasPermission(this)) "mangler tillatelse til å styre GPS" else null,
+            if (!isIgnoringBattery()) "batterioptimalisering på" else null,
         )
-        if (warnings.isNotEmpty()) status.text = "${status.text}\n⚠ ${warnings.joinToString(", ")} (see Settings)"
+        if (warnings.isNotEmpty()) status.text = "${status.text}\n⚠ ${warnings.joinToString(", ")} (se Innstillinger)"
         manualLine(p)?.let { status.text = "${status.text}\n$it" }
-        settingsStatus.text = (if (running) "● Running – checking every $interval min" else "○ Stopped – interval $interval min") +
+        settingsStatus.text = (if (running) "● Logger – sjekker hvert $interval min" else "○ Stoppet – intervall $interval min") +
             "\n" + gps + "\n" + perm +
-            (if (isIgnoringBattery()) "\nBattery optimization: off" else "\nBattery optimization: on (may stop logging)") +
-            "\nGPS used today: ${LocationService.gpsUsesToday(this)}× (location: cached fix → Wi-Fi/cell → GPS only if needed)" +
-            (if (CheckAlarm.canExact(this)) "\nWake-up alarms: exact" else "\nWake-up alarms: inexact (exact alarms not allowed; checks may be late with the screen off)")
+            (if (isIgnoringBattery()) "\nBatterioptimalisering: av" else "\nBatterioptimalisering: på (kan stoppe loggingen)") +
+            "\nGPS brukt i dag: ${LocationService.gpsUsesToday(this)}× (posisjon: lagret fix → Wi-Fi/mobilnett → GPS bare ved behov)" +
+            (if (CheckAlarm.canExact(this)) "\nVekkealarmer: nøyaktige" else "\nVekkealarmer: unøyaktige (nøyaktige alarmer ikke tillatt; sjekker kan komme sent med skjermen av)")
         findViewById<TextView>(R.id.keepAdbWifiStatus).text =
-            (if (GpsToggle.hasPermission(this)) "Permission WRITE_SECURE_SETTINGS: granted"
-             else "Permission WRITE_SECURE_SETTINGS: not granted (grant via adb) – cannot turn it on") +
-            (p.getString(AdbReporter.KEY_KEEP_STATUS, null)?.let { "\nLast: $it" } ?: "")
+            (if (GpsToggle.hasPermission(this)) "Tillatelse WRITE_SECURE_SETTINGS: gitt"
+             else "Tillatelse WRITE_SECURE_SETTINGS: ikke gitt (gi via adb) – kan ikke slå det på") +
+            (p.getString(AdbReporter.KEY_KEEP_STATUS, null)?.let { "\nSist: $it" } ?: "")
         findViewById<TextView>(R.id.dashboardStatus).text =
-            (if (AdbReporter.url(this).isEmpty()) "Off" else (AdbReporter.status(this) ?: "Not reported yet")) +
+            (if (AdbReporter.url(this).isEmpty()) "Av" else (AdbReporter.status(this) ?: "Ikke rapportert ennå")) +
                 "\n" + ShizukuWatch.statusLine(this) + "\n" + TailscaleWatch.statusLine(this)
         findViewById<TextView>(R.id.commPermStatus).text = commStatusText()
         findViewById<Button>(R.id.btnCommPermsSettings).isEnabled = commPermissions().any { !granted(it) }
         findViewById<Button>(R.id.btnContactStore).text = "Kontaktlager: " + try { Contacts.current(this).label } catch (_: Exception) { "?" }
         findViewById<TextView>(R.id.lookupStatus).text = "Oppslag lagret: ${NumberLookup.cacheSize(this)}" +
             (NumberLookup.status(this)?.let { " · $it" } ?: "")
-        lastCheck.text = "Last check: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")
+        lastCheck.text = "Siste sjekk: " + (p.getString(LogStore.KEY_LAST_CHECK, null) ?: "–")
         btnBackground.isEnabled = !hasBackgroundLocation()
         btnBattery.isEnabled = !isIgnoringBattery()
         val nPlaces = Places.count(Places.text(this))
         findViewById<TextView>(R.id.placesTitle).text =
-            if (nPlaces == 0) "Places (merge addresses)" else "Places (merge addresses): ${placesCountText(nPlaces)}"
+            if (nPlaces == 0) "Steder (slå sammen adresser)" else "Steder (slå sammen adresser): ${placesCountText(nPlaces)}"
         val lastRaw = p.getString(LogStore.KEY_LAST_RAW_ADDRESS, null)
         findViewById<TextView>(R.id.placesLastRaw).text =
-            "Last address from the phone:\n" + (lastRaw ?: "– (none yet)")
+            "Siste adresse fra telefonen:\n" + (lastRaw ?: "– (ingen ennå)")
         btnInsertLast.isEnabled = lastRaw != null
         Thread {
             LogStore.deleteOldTextLogsOnce(this)
@@ -885,14 +891,15 @@ class MainActivity : Activity() {
     // ---------- visits ----------
 
     private val timeFmt = SimpleDateFormat("HH:mm", Locale.ENGLISH)
-    private val dayFmt = SimpleDateFormat("EEE d MMM yyyy", Locale.ENGLISH)
+    private val NB = Locale.forLanguageTag("nb")
+    private val dayFmt = SimpleDateFormat("EEEE d. MMMM yyyy", NB)
     private val dayKeyFmt = SimpleDateFormat("yyyyMMdd", Locale.ENGLISH)
 
     private fun dayLabel(t: Long): String {
         val now = System.currentTimeMillis()
         return when (dayKeyFmt.format(Date(t))) {
-            dayKeyFmt.format(Date(now)) -> "Today · " + dayFmt.format(Date(t))
-            dayKeyFmt.format(Date(now - 86_400_000L)) -> "Yesterday · " + dayFmt.format(Date(t))
+            dayKeyFmt.format(Date(now)) -> "I dag · " + dayFmt.format(Date(t))
+            dayKeyFmt.format(Date(now - 86_400_000L)) -> "I går · " + dayFmt.format(Date(t))
             else -> dayFmt.format(Date(t))
         }
     }
@@ -924,18 +931,18 @@ class MainActivity : Activity() {
     private fun drivingRow(durationMs: Long?, distanceM: Double?, ongoing: Boolean): android.view.View? {
         val dur = durationMs?.takeIf { it >= 0 }
         if (dur == null && distanceM == null) return null
-        val durText = dur?.let { formatDuration(it) + if (ongoing) " so far" else "" } ?: "–"
+        val durText = dur?.let { formatDuration(it) + if (ongoing) " så langt" else "" } ?: "–"
         val distText = distanceM?.let { formatDistance(it.toFloat()) } ?: "–"
         return TextView(this).apply {
-            text = (if (ongoing) "🚗 Driving now · " else "🚗 Driving · ") + "$durText · $distText"
+            text = (if (ongoing) "🚗 Kjører nå · " else "🚗 Kjøring · ") + "$durText · $distText"
             textSize = 13f
-            setTextColor(if (ongoing) 0xFF1565C0.toInt() else 0xFF757575.toInt())
+            setTextColor(if (ongoing) Ui.primary(this@MainActivity) else Ui.variant(this@MainActivity))
             setTypeface(typeface, android.graphics.Typeface.ITALIC)
-            setPadding(dp(28), dp(2), 0, dp(2))
+            setPadding(dp(20), dp(4), 0, dp(4))
         }
     }
 
-    private val COMMENT_COLOR = 0xFF6A1B9A.toInt()
+    private val COMMENT_COLOR get() = Ui.comment(this)
 
     /** Compact square icon button (44 dp touch target), as on the Samtaler rows (1.46). */
     private fun commentBtn(icon: Int, tint: Int, label: String, onClick: () -> Unit): android.view.View {
@@ -1010,14 +1017,14 @@ class MainActivity : Activity() {
         }
         if (cand != null && running) {
             visits.addView(TextView(this).apply {
-                text = "Seen once: ${Places.label(placeMap, cand.first)} at ${timeFmt.format(Date(cand.second))} – becomes a visit if confirmed at the next check"
+                text = "Sett én gang: ${Places.label(placeMap, cand.first)} kl. ${timeFmt.format(Date(cand.second))} – blir et besøk hvis det bekreftes ved neste sjekk"
                 textSize = 12f
-                setTextColor(0xFF757575.toInt())
-                setPadding(0, dp(4), 0, dp(4))
+                setTextColor(Ui.variant(this@MainActivity))
+                setPadding(dp(8), dp(4), 0, dp(4))
             })
         }
         if (all.isEmpty()) {
-            visits.addView(TextView(this).apply { text = "(no visits yet)"; setPadding(0, dp(8), 0, 0) })
+            visits.addView(TextView(this).apply { text = "(ingen besøk ennå)"; setTextColor(Ui.variant(this@MainActivity)); setPadding(dp(8), dp(16), 0, 0) })
             return
         }
         val first = (all.size - MAX_VISITS).coerceAtLeast(0)
@@ -1036,22 +1043,22 @@ class MainActivity : Activity() {
                 lastDay = day
                 visits.addView(TextView(this).apply {
                     text = dayLabel(v.arrival)
-                    textSize = 13f
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
-                    setTextColor(0xFF1565C0.toInt())
-                    setPadding(0, dp(12), 0, dp(2))
+                    textSize = 14f
+                    typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+                    setTextColor(Ui.primary(this@MainActivity))
+                    setPadding(dp(8), dp(18), 0, dp(6))
                 })
             }
 
             val arrived = timeFmt.format(Date(v.arrival))
             val dep = v.departure
             fun at(t: Long) = if (sameDay(v.arrival, t)) timeFmt.format(Date(t)) else
-                SimpleDateFormat("EEE d MMM HH:mm", Locale.ENGLISH).format(Date(t))
+                SimpleDateFormat("EEE d. MMM HH:mm", NB).format(Date(t))
             val (times, duration) = when {
-                isCurrent && running -> "$arrived – now" to "${formatDuration(now - v.arrival)} so far"
-                dep != null && isCurrent -> "$arrived – last seen ${at(dep)} (logging stopped)" to formatDuration(dep - v.arrival)
+                isCurrent && running -> "$arrived – nå" to "${formatDuration(now - v.arrival)} så langt"
+                dep != null && isCurrent -> "$arrived – sist sett ${at(dep)} (logging stoppet)" to formatDuration(dep - v.arrival)
                 dep != null -> "$arrived – ${at(dep)}" to formatDuration(dep - v.arrival)
-                next != null -> "$arrived – ?" to "up to ${formatDuration(next.arrival - v.arrival)}"
+                next != null -> "$arrived – ?" to "inntil ${formatDuration(next.arrival - v.arrival)}"
                 else -> "$arrived – ?" to null
             }
             val details = duration ?: ""
@@ -1060,7 +1067,13 @@ class MainActivity : Activity() {
                 // Text on the left (full width when there is no image), square image on the right
                 orientation = android.widget.LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.TOP
-                setPadding(dp(8), dp(6), 0, dp(6))
+                // 1.49: each stop is a rounded card (Material 3, like AudioAddict)
+                setPadding(dp(16), dp(12), 0, dp(12))
+                setBackgroundResource(R.drawable.card_ripple)
+                minimumHeight = dp(72)
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(3); bottomMargin = dp(3) }
                 val row = this
                 val textCol = android.widget.LinearLayout(this@MainActivity).apply {
                     orientation = android.widget.LinearLayout.VERTICAL
@@ -1071,7 +1084,8 @@ class MainActivity : Activity() {
                 textCol.addView(TextView(this@MainActivity).apply {
                     text = (if (isCurrent && running) "● " else "") + label
                     textSize = 16f
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+                    setTextColor(Ui.onSurface(this@MainActivity))
                     // 1.47: no longer selectable – a long-press on the row copies the whole stop instead
                 })
                 // 1.46: comment excerpt after the times on the same line (as in Samtaler 1.45)
@@ -1087,16 +1101,16 @@ class MainActivity : Activity() {
                     }
                 }
                 textCol.addView(TextView(this@MainActivity).apply {
-                    text = timesText; textSize = 14f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
+                    text = timesText; textSize = 14f; setTextColor(Ui.onSurface(this@MainActivity)); maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
                 })
                 if (details.isNotEmpty()) textCol.addView(TextView(this@MainActivity).apply {
                     text = details
                     textSize = 13f
-                    setTextColor(0xFF616161.toInt())
+                    setTextColor(Ui.variant(this@MainActivity))
                 })
                 // 1.46: comment icon (same as Samtaler) between the text and the image, vertically centred
                 val cBtn = if (comment != null) commentBtn(R.drawable.ic_row_comment_filled, COMMENT_COLOR, "Rediger kommentar") { editVisitComment(v, label) }
-                    else commentBtn(R.drawable.ic_row_comment, 0xFF757575.toInt(), "Kommenter") { editVisitComment(v, label) }
+                    else commentBtn(R.drawable.ic_row_comment, Ui.variant(this@MainActivity), "Kommenter") { editVisitComment(v, label) }
                 row.addView(cBtn)
                 val lat = v.lat
                 val lon = v.lon
@@ -1126,6 +1140,8 @@ class MainActivity : Activity() {
                 // Keep the icon well clear of the right edge: 16 dp when it is the last item, else the image's margin
                 (cBtn.layoutParams as android.widget.LinearLayout.LayoutParams).marginEnd = if (img == null) dp(16) else dp(4)
                 (img?.layoutParams as? android.widget.LinearLayout.LayoutParams)?.marginEnd = dp(12)
+                // the card's vertical padding already frames the image
+                if (img != null) setPadding(dp(16), dp(10), 0, dp(10))
             })
             // Driving from the previous stop to this one (shown under the arriving stop, in its day)
             if (prev != null) {
@@ -1134,9 +1150,10 @@ class MainActivity : Activity() {
             }
         }
         if (first > 0) visits.addView(TextView(this).apply {
-            text = "($first older visits not shown)"
+            text = "($first eldre besøk vises ikke)"
             textSize = 12f
-            setPadding(0, dp(8), 0, 0)
+            setTextColor(Ui.variant(this@MainActivity))
+            setPadding(dp(8), dp(8), 0, 0)
         })
     }
 }

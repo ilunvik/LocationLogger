@@ -37,7 +37,7 @@ object Player {
         val box = LinearLayout(act).apply {
             orientation = LinearLayout.VERTICAL
             setPadding((20 * d).toInt(), (12 * d).toInt(), (20 * d).toInt(), 0)
-            addView(TextView(act).apply { text = "Kilde: ${rec.source}"; textSize = 12f; setTextColor(0xFF757575.toInt()) })
+            addView(TextView(act).apply { text = "Kilde: ${rec.source}"; textSize = 12f; setTextColor(Ui.variant(act)) })
             addView(seek); addView(pos); addView(btn)
         }
         val h = Handler(Looper.getMainLooper())

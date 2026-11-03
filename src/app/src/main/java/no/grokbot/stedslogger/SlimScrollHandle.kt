@@ -25,8 +25,8 @@ class SlimScrollHandle @JvmOverloads constructor(ctx: Context, attrs: AttributeS
     private val thumbMinH = 44 * d
     private val edge = 3 * d
     private val grabSlop = 16 * d
-    private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF9E9E9E.toInt() }
-    private val dragPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF616161.toInt() }
+    private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ctx.getColor(R.color.m3_outline) }
+    private val dragPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ctx.getColor(R.color.m3_primary) }
     private val rect = RectF()
     private var list: ListView? = null
     private var dragging = false

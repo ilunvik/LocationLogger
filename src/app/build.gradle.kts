@@ -9,8 +9,8 @@ android {
         applicationId = "no.grokbot.stedslogger"
         minSdk = 26
         targetSdk = 34
-        versionCode = 50
-        versionName = "1.48"
+        versionCode = 51
+        versionName = "1.49"
     }
     buildTypes {
         release {
@@ -24,6 +24,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     lint { abortOnError = false }
+    // 1.49: Robolectric layout screenshots (UiShots, only when LL_SHOTS is set; synthetic data)
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 dependencies {
     // Shizuku API: only used to ping the Shizuku binder (is Shizuku running?), see ShizukuWatch
@@ -32,4 +34,5 @@ dependencies {
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

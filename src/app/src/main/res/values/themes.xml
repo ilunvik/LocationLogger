@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.49: Material 3 look like AudioAddict (follows the system light/dark mode, as AudioAddict does by default) -->
+<resources>
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/m3_primary</item>
+        <item name="android:colorPrimaryDark">@color/m3_background</item>
+        <item name="android:colorAccent">@color/m3_primary</item>
+        <item name="android:colorControlActivated">@color/m3_primary</item>
+        <item name="android:colorControlNormal">@color/m3_on_surface_variant</item>
+        <item name="android:colorControlHighlight">#22888888</item>
+        <item name="android:colorBackground">@color/m3_background</item>
+        <item name="android:windowBackground">@color/m3_background</item>
+        <item name="android:statusBarColor">@color/m3_background</item>
+        <item name="android:navigationBarColor">@color/m3_surface_container</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:textColorPrimary">@color/m3_on_surface</item>
+        <item name="android:textColorSecondary">@color/m3_on_surface_variant</item>
+        <item name="android:textColorHint">@color/m3_outline</item>
+        <item name="android:buttonStyle">@style/LL.Button</item>
+        <item name="android:buttonStyleSmall">@style/LL.Button.Small</item>
+        <item name="android:alertDialogTheme">@style/LL.Dialog</item>
+        <item name="android:dropDownListViewStyle">@android:style/Widget.Material.ListView.DropDown</item>
+        <item name="android:popupMenuStyle">@style/LL.Popup</item>
+        <item name="android:dropDownSpinnerStyle">@style/LL.Spinner</item>
+        <item name="android:spinnerStyle">@style/LL.Spinner</item>
+    </style>
+
+    <style name="LL.Dialog" parent="android:Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorPrimary">@color/m3_primary</item>
+        <item name="android:colorAccent">@color/m3_primary</item>
+        <item name="android:colorControlActivated">@color/m3_primary</item>
+        <item name="android:windowBackground">@drawable/dialog_bg</item>
+        <item name="android:colorBackground">@color/m3_surface_container_high</item>
+        <item name="android:textColorPrimary">@color/m3_on_surface</item>
+        <item name="android:textColorSecondary">@color/m3_on_surface_variant</item>
+        <item name="android:buttonBarButtonStyle">@style/LL.TextButton</item>
+        <item name="android:buttonStyle">@style/LL.Button</item>
+        <item name="android:buttonStyleSmall">@style/LL.Button.Small</item>
+    </style>
+</resources>

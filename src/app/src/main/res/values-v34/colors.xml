@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1.49: dynamic (wallpaper) colours on Android 14+, like AudioAddict -->
+<resources>
+    <color name="m3_primary">@android:color/system_primary_light</color>
+    <color name="m3_on_primary">@android:color/system_on_primary_light</color>
+    <color name="m3_primary_container">@android:color/system_primary_container_light</color>
+    <color name="m3_on_primary_container">@android:color/system_on_primary_container_light</color>
+    <color name="m3_secondary_container">@android:color/system_secondary_container_light</color>
+    <color name="m3_on_secondary_container">@android:color/system_on_secondary_container_light</color>
+    <color name="m3_tertiary">@android:color/system_tertiary_light</color>
+    <color name="m3_background">@android:color/system_background_light</color>
+    <color name="m3_surface_container_low">@android:color/system_surface_container_low_light</color>
+    <color name="m3_surface_container">@android:color/system_surface_container_light</color>
+    <color name="m3_surface_container_high">@android:color/system_surface_container_high_light</color>
+    <color name="m3_surface_container_highest">@android:color/system_surface_container_highest_light</color>
+    <color name="m3_on_surface">@android:color/system_on_surface_light</color>
+    <color name="m3_on_surface_variant">@android:color/system_on_surface_variant_light</color>
+    <color name="m3_outline">@android:color/system_outline_light</color>
+    <color name="m3_outline_variant">@android:color/system_outline_variant_light</color>
+</resources>

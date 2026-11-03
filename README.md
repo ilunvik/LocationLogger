@@ -68,6 +68,16 @@ The app has four tabs (the **Samtaler** tab since 1.32, see [Calls and SMS](#cal
 
 Back on the Settings or Log tab returns to Visits; the app reopens on the tab you used last.
 
+### Modern look (1.49)
+
+Since 1.49 the app uses a Material 3 style like AudioAddict: dark or light following the system setting
+(dynamic system colours on Android 14+, a purple seed palette on older phones), a large top title, a bottom
+navigation bar with icons and a pill indicator (**Besøk**, **Samtaler**, **Oppslag**, **Innstillinger**,
+**Logg**), rounded cards for the status box, visits, calls/SMS, log entries and settings groups, and pill-shaped
+tonal/filled buttons and filter chips. The settings texts, dialogs and messages are in Norwegian. Behaviour is unchanged.
+Layout previews can be rendered on a computer with synthetic data (no phone needed):
+`LL_SHOTS=1 ./gradlew testDebugUnitTest --tests '*UiShots*'` writes PNGs to `app/build/screenshots/` (not committed).
+
 ## Settings
 
 - **Start logging / Stop logging** – start or stop the background service.
