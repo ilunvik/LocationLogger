@@ -541,7 +541,11 @@ class MainActivity : Activity() {
         placesJustSaved = true
         updatePlacesState()
         updatePlaceThumbs()
-        refresh()
+        Thread {
+            val n = VisitStore.mergeByPlace(this)
+            if (n > 0) EventLog.add(this, EventLog.VISIT, "$n besøk slått sammen etter stedoppdatering")
+            runOnUiThread { refresh() }
+        }.start()
     }
 
     /** Leaving the Settings tab with unsaved place edits: ask first. Returns true if the caller may leave. */

@@ -156,6 +156,49 @@ object VisitStore {
         return Outcome.CANDIDATE
     }
 
+    /**
+     * Merges consecutive visits that resolve to the same place under [places]. Pure function (no IO).
+     * When two adjacent visits map to the same place, they are collapsed into one: the earlier
+     * arrival is kept, the later departure wins, and the first visit's coordinates and travelledM
+     * are kept (the intermediate GPS-jitter distances between sub-visits are dropped).
+     */
+    fun mergeConsecutive(visits: List<Visit>, places: Map<String, String>): List<Visit> {
+        val out = mutableListOf<Visit>()
+        for (v in visits) {
+            val last = out.lastOrNull()
+            if (last != null && Places.same(places, last.name, v.name)) {
+                out[out.size - 1] = last.copy(
+                    departure = when {
+                        v.departure == null -> null  // ongoing visit: no departure yet
+                        last.departure == null -> v.departure
+                        else -> maxOf(last.departure!!, v.departure!!)
+                    }
+                )
+            } else {
+                out += v
+            }
+        }
+        return out
+    }
+
+    /**
+     * Re-evaluates the stored visit list against the current place list and merges consecutive
+     * visits that now resolve to the same place. Called after the place list is saved.
+     * Returns the number of visits removed by merging (0 if nothing changed).
+     */
+    @Synchronized
+    fun mergeByPlace(ctx: Context): Int {
+        val places = Places.parse(Places.text(ctx))
+        val list = load(ctx)
+        val out = mergeConsecutive(list, places)
+        val removed = list.size - out.size
+        if (removed > 0) {
+            cache = out.toMutableList()
+            save(ctx, out)
+        }
+        return removed
+    }
+
     fun candidate(ctx: Context): Pair<String, Long>? {
         val p = LogStore.prefs(ctx)
         val n = p.getString(KEY_CAND_NAME, null) ?: return null
